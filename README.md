@@ -7,6 +7,8 @@ An intelligent, privacy-first money tracking application powered by on-device AI
 - **Local LLM** — Uses on-device language models with no cloud inference, keeping your financial data private.
 - **Mobile friendly** — Designed for seamless use on mobile devices.
 - **Knowledge Graph (Ontology)** — Organizes transactions and relationships in a structured, queryable graph.
+- **Gesture-based activation** — Trigger the AI instantly through intuitive gestures such as a double tap or a long press of the volume button, enabling hands-free, quick access.
+
 
 ## Workflow [ Features ]
 
