@@ -1,0 +1,28 @@
+flowchart LR
+    User[User] -->|PAID| Transaction[Transaction]
+
+    Transaction -->|VIA| PaymentMethod["PaymentMethod<br/>method · instrument? · account?"]
+    Transaction -->|CATEGORIZED_AS| Category[Category]
+    Transaction -->|AT| Merchant[Merchant]
+    Transaction -->|FOR| Beneficiary[Beneficiary]
+    Transaction -->|HAS_LINE_ITEM| LineItem["LineItem<br/>name · cost · quantity"]
+    Transaction -->|MATCHES| RecurrencePattern[RecurrencePattern]
+    Transaction -->|AT| Location[Location]
+
+    Evidence[Evidence<br/>immutable · index_id] -->|EXTRACTED_INTO| Transaction
+    Evidence -->|CORRECTS| Transaction
+    Evidence -.->|index_id| VectorStore[(Vector Store)]
+
+    subgraph TransactionFields["Transaction fields"]
+        TransactionMetadata["id · amount · currency · timestamp<br/>status · updated_at · last_evidence_id"]
+    end
+    Transaction -.-> TransactionMetadata
+
+    subgraph EvidenceFields["Evidence fields"]
+        EvidenceMetadata["id · index_id · raw_text · type<br/>timestamp · source_channel"]
+    end
+    Evidence -.-> EvidenceMetadata
+
+    style Transaction fill:#dbeafe,stroke:#2563eb,stroke-width:2px
+    style Evidence fill:#fef3c7,stroke:#d97706,stroke-width:2px
+    style VectorStore fill:#f3e8ff,stroke:#9333ea
