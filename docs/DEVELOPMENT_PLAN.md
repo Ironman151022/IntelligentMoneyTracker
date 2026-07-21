@@ -1,7 +1,7 @@
 # Intelligent Money Tracker — Development Plan
 
 > Living document. Two phases: **Prototype** (Python, prove the brains) → **Develop** (React Native, ship on-device).
-> Golden rule: **prototype with the same model you ship (Gemma 3n E2B)** so behavior transfers.
+> Golden rule: **use Gemma 3n E2B only** in both prototype and mobile builds so behaviour transfers.
 
 ---
 
@@ -12,7 +12,8 @@
 | Privacy-first | On-device inference only. No cloud LLM calls. |
 | Cross-platform | One codebase (React Native) for iOS + Android. |
 | Offline-first | Core flows work with no network. |
-| Same-model rule | Prototype on Gemma 3n E2B (via Ollama) = ship Gemma 3n on device. |
+| Same-model rule | Prototype on Gemma 3n E2B (via Ollama) = ship Gemma 3n E2B on device. No alternative LLMs. |
+| Time policy | Never extract, infer, or ask for a date or time. The app records its own capture time. |
 | Portable contract | Prompts, schemas, tools, DB schema transfer 1:1; runtime/serving does not. |
 
 ---
@@ -34,7 +35,7 @@
 
 | Layer | Prototype (Python) | Mobile (React Native) |
 |---|---|---|
-| LLM model | Gemma 3n E2B | Gemma 3n E2B (same) |
+| LLM model | **Gemma 3n E2B only** | **Gemma 3n E2B only** |
 | LLM runtime | Ollama (dev only) | MediaPipe LLM Inference *or* `llama.rn` (GGUF) |
 | Orchestration | Thin custom loop (avoid heavy LangChain) | Custom TS loop |
 | Structured output | JSON schema | GBNF grammar / MediaPipe function calling |
@@ -54,7 +55,7 @@
 |---|---|---|
 | P1 | Set up Ollama + Gemma 3n E2B | Model responding locally |
 | P2 | Define SQLite schema (transactions + nodes/edges) | `schema.sql` |
-| P3 | Author system prompt + JSON output schema | `prompt.txt`, `schema.json` |
+| P3 | Author system prompt + JSON output schema | `prompt.txt`, `schema.json`; excludes user-provided dates/times |
 | P4 | Define F1 tools (create_transaction, upsert_merchant, link_edge, query) | `tools.py` w/ clear I/O |
 | P5 | Build thin orchestration loop | `agent.py` |
 | P6 | Build eval set (20–30 utterances → expected JSON) | `evals.jsonl` |
@@ -66,7 +67,7 @@
 | Use SQLite | Use Postgres |
 | Keep prompt/schema/tools in plain files | Bury logic in framework internals |
 | Force structured JSON output | Rely on model "just knowing" tool calls |
-| Test on Gemma 3n | Prototype on GPT-4/Claude |
+| Test on Gemma 3n E2B only | Prototype on another model |
 
 ---
 
@@ -124,7 +125,7 @@ Voice/Text → LLM (structured extract) → { transactions table  ⇌  nodes/edg
 
 | Table | Purpose |
 |---|---|
-| `transactions` | normalized records (amount, merchant, category, date, currency) |
+| `transactions` | normalized records (amount, merchant, category, currency, system-generated `recorded_at`) |
 | `nodes` | entities (Transaction, Merchant, Category) |
 | `edges` | relations e.g. `(Txn)-[AT]->(Merchant)`, `(Merchant)-[IN]->(Category)` |
 
@@ -147,7 +148,7 @@ Voice/Text → LLM (structured extract) → { transactions table  ⇌  nodes/edg
 
 | Item | Status | Note |
 |---|---|---|
-| iOS runtime: MediaPipe vs Apple Foundation Models | Open | unified vs best-per-platform |
+| iOS runtime: MediaPipe vs `llama.rn` | Open | must run Gemma 3n E2B; Apple Foundation Models are out of scope |
 | Min device specs for Gemma 3n E2B | Validate in D4 | shapes UX (streaming vs spinner) |
 | F3 on iOS | Constrained | can't read other apps' notifications; Android-first |
 | README "volume button" | To fix | replace with Back Tap / Action Button / QS tile |
@@ -157,7 +158,7 @@ Voice/Text → LLM (structured extract) → { transactions table  ⇌  nodes/edg
 
 ## 11. Milestones
 
-- [ ] **M0 Prototype:** Gemma 3n parses utterance → valid transaction JSON → SQLite graph (eval set passes)
+- [ ] **M0 Prototype:** Gemma 3n E2B parses utterance → valid transaction JSON without a user-provided timestamp → SQLite graph (eval set passes)
 - [ ] **M1 Skeleton:** RN app + SQLite + manual entry
 - [ ] **M2 On-device AI:** text → JSON on a real phone (speed/RAM validated)
 - [ ] **M3 Voice E2E:** speak → transaction saved

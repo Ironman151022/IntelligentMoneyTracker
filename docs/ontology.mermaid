@@ -14,12 +14,12 @@ flowchart LR
     Evidence -.->|index_id| VectorStore[(Vector Store)]
 
     subgraph TransactionFields["Transaction fields"]
-        TransactionMetadata["id · amount · currency · timestamp<br/>status · updated_at · last_evidence_id"]
+        TransactionMetadata["id · amount · currency · recorded_at<br/>status · updated_at · last_evidence_id"]
     end
     Transaction -.-> TransactionMetadata
 
     subgraph EvidenceFields["Evidence fields"]
-        EvidenceMetadata["id · index_id · raw_text · type<br/>timestamp · source_channel"]
+        EvidenceMetadata["id · index_id · raw_text · type<br/>captured_at · source_channel"]
     end
     Evidence -.-> EvidenceMetadata
 

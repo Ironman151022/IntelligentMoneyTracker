@@ -5,7 +5,8 @@ Version 1 supports fast capture and logging of transactions from user input.
 
 ## Included
 - Create a transaction from voice or text input
-- Extract amount, currency, timestamp, merchant, category, and payment method when available
+- Extract amount, currency, merchant, category, and payment method when available
+- Record the system capture time; never extract, infer, or ask the user for a date or time
 - Store immutable source evidence
 - Link evidence to the created transaction
 - Show a success, review, or failure state
@@ -23,7 +24,7 @@ Version 1 supports fast capture and logging of transactions from user input.
 ## Core flow
 1. User triggers the gesture and provides input.
 2. The app stores the input as Evidence.
-3. AI extracts structured transaction data.
+3. AI extracts structured transaction data without a user-provided date or time.
 4. The backend validates and creates the Transaction.
 5. The UI displays the logged transaction.
 
