@@ -10,7 +10,7 @@ The model has six node types.
 2. **PaymentMethod** — how the transaction was paid, for example `upi`, `cash`, or `card`. One UPI node can be reused by many transactions.
 3. **Category** — a user-visible classification. Categories form a hierarchy: for example, `Food` can be the parent of `Restaurants`, `Food delivery`, and `Lunch`.
 4. **Merchant** — the payee, shop, platform, or brand, for example Zomato or Domino's. A merchant node is reused across transactions.
-5. **LineItem** — one item bought within a transaction, including its name, quantity, and cost. A line item belongs to one transaction.
+5. **Item** — one item bought within a transaction, including its name, quantity, and cost. A line item belongs to one transaction.
 6. **Beneficiary** — the person who benefited from a transaction, such as `Self`, Ravi, or Ananya. A beneficiary can be linked to many transactions.
 
 `Transaction` is a graph node even though it has its own table. A dedicated typed table makes common financial queries, indexes, and amount validation efficient.
@@ -25,7 +25,7 @@ The first six tables contain the nodes. The remaining tables contain relationshi
 | `payment_methods` | `id` (PK), `method` |
 | `categories` | `id` (PK), `name`, `parent_category_id` (nullable FK → `categories.id`) |
 | `merchants` | `id` (PK), `name`, `normalized_name` |
-| `line_items` | `id` (PK), `transaction_id` (FK → `transactions.id`), `name`, `quantity`, `cost_minor` |
+| `items` | `id` (PK), `transaction_id` (FK → `transactions.id`), `name`, `quantity`, `cost_minor` |
 | `beneficiaries` | `id` (PK), `name`, `relation` |
 | `transaction_categories` | `transaction_id` (FK → `transactions.id`), `category_id` (FK → `categories.id`), primary key: (`transaction_id`, `category_id`) |
 | `transaction_beneficiaries` | `transaction_id` (FK → `transactions.id`), `beneficiary_id` (FK → `beneficiaries.id`), `allocated_amount_minor`, primary key: (`transaction_id`, `beneficiary_id`) |
@@ -43,7 +43,7 @@ The first six tables contain the nodes. The remaining tables contain relationshi
 | `Transaction ──AT──► Merchant` | `transactions.merchant_id` |
 | `Transaction ──CATEGORIZED_AS──► Category` | `transaction_categories` |
 | `Category ──CHILD_OF──► Category` | `categories.parent_category_id` |
-| `Transaction ──HAS_LINE_ITEM──► LineItem` | `line_items.transaction_id` |
+| `Transaction ──HAS_LINE_ITEM──► LineItem` | `items.transaction_id` |
 | `Transaction ──FOR──► Beneficiary` | `transaction_beneficiaries` |
 
 The category and beneficiary relations use separate relationship tables because a transaction can have multiple categories and multiple beneficiaries. The beneficiary relationship also has data of its own: the amount allocated to that person.
