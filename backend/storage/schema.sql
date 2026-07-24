@@ -35,9 +35,9 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount            INTEGER NOT NULL CHECK (amount >= 0),
     currency          TEXT NOT NULL DEFAULT 'INR',
     type              TEXT NOT NULL DEFAULT 'expense'
-                          CHECK (type IN ('expense', 'income', 'transfer')),
+                          CHECK (type IN ('expense', 'income', 'transfer', 'refund')),
     status            TEXT NOT NULL DEFAULT 'completed'
-                          CHECK (status IN ('pending', 'completed', 'cancelled', 'refunded')),
+                          CHECK (status IN ('pending', 'completed', 'failed', 'refunded')),
     created_at        TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at        TEXT,
     payment_method_id INTEGER REFERENCES payment_methods (id) ON DELETE SET NULL,
