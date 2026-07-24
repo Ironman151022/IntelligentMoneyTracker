@@ -8,7 +8,7 @@ Audio is fed into an AI model, which creates a central **Transaction** node and 
 
 The model has six node types.
 
-1. **Transaction** — one money event. It stores the amount, currency, type (expense / income / transfer), lifecycle status, and timestamps.
+1. **Transaction** — one money event. It stores the amount, currency, type (expense / income / transfer / refund), lifecycle status, and timestamps.
 2. **PaymentMethod** — how the money moved, for example `upi`, `cash`, or `card`. One payment method can be reused by many transactions.
 3. **Category** — a user-visible classification. Categories form a hierarchy: for example, `Food` can be the parent of `Restaurants`, `Food delivery`, and `Lunch`.
 4. **Merchant** — the counterparty shop, platform, brand, or payer source, for example Zomato, Domino's, or an employer name. A merchant node is reused across transactions.
@@ -21,36 +21,40 @@ The model has six node types.
 
 The first six tables contain the nodes. The remaining tables contain relationships or lookup aliases; they are not additional node types.
 
-| Table name | Columns |
-| --- | --- |
-| `transactions` | `id` (PK), `amount`, `currency`, `type` (`'expense'`, `'income'`, `'transfer'`), `status` (`'pending'`, `'completed'`, `'cancelled'`, `'refunded'`), `created_at`, `updated_at` (nullable), `payment_method_id` (nullable FK → `payment_methods.id`), `merchant_id` (nullable FK → `merchants.id`) |
-| `items` | `id` (PK), `name`, `transaction_id` (FK → `transactions.id`), `line_amount` (nullable), `quantity` (int, nullable) |
-| `beneficiaries` | `id` (PK), `name` (unique), `relationship` (nullable) |
-| `transaction_beneficiaries` | `transaction_id` (FK → `transactions.id`), `beneficiary_id` (FK → `beneficiaries.id`), `allocated_amount` (nullable) |
-| `transaction_categories` | `transaction_id` (FK → `transactions.id`), `category_id` (FK → `categories.id`) |
-| `categories` | `id` (PK), `name`, `parent_id` (nullable FK → `categories.id`) |
-| `payment_methods` | `id` (PK), `method` |
-| `merchants` | `id` (PK), `name` |
-| `merchant_aliases` | `id` (PK), `merchant_id` (FK → `merchants.id`), `name` |
+
+| Table name                  | Columns                                                                                                                                                                                                                                                                                            |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `transactions`              | `id` (PK), `amount`, `currency`, `type` (`'expense'`, `'income'`, `'transfer'`, `'refund'`), `status` (`'pending'`, `'completed'`, `'failed'`, `'refunded'`), `created_at`, `updated_at` (nullable), `payment_method_id` (nullable FK → `payment_methods.id`), `merchant_id` (nullable FK → `merchants.id`) |
+| `items`                     | `id` (PK), `name`, `transaction_id` (FK → `transactions.id`), `line_amount` (nullable), `quantity` (int, nullable)                                                                                                                                                                                 |
+| `beneficiaries`             | `id` (PK), `name` (unique), `relationship` (nullable)                                                                                                                                                                                                                                              |
+| `transaction_beneficiaries` | `transaction_id` (FK → `transactions.id`), `beneficiary_id` (FK → `beneficiaries.id`), `allocated_amount` (nullable)                                                                                                                                                                               |
+| `transaction_categories`    | `transaction_id` (FK → `transactions.id`), `category_id` (FK → `categories.id`)                                                                                                                                                                                                                    |
+| `categories`                | `id` (PK), `name`, `parent_id` (nullable FK → `categories.id`)                                                                                                                                                                                                                                     |
+| `payment_methods`           | `id` (PK), `method`                                                                                                                                                                                                                                                                                |
+| `merchants`                 | `id` (PK), `name`                                                                                                                                                                                                                                                                                  |
+| `merchant_aliases`          | `id` (PK), `merchant_id` (FK → `merchants.id`), `name`                                                                                                                                                                                                                                             |
+
 
 `amount` is the transaction total. `line_amount` is one item's cost. `allocated_amount` is the split assigned to one beneficiary.
 
 `type` is the money direction — not lifecycle state. Salary credited or “someone sent me ₹100” are `income`; buying lunch is `expense`; moving money between own accounts is `transfer`.
 
-`status` is only lifecycle: `pending`, `completed`, `cancelled`, or `refunded`.
+`status` is only lifecycle: `pending`, `completed`, `failed`, or `refunded`.
 
 `categories` intentionally has only `name` and `parent_id` beyond its ID. A category's position in the hierarchy supplies its meaning.
 
 ## Relationship edges
 
-| Graph edge | Physical representation |
-| --- | --- |
-| `Transaction ──paid_via──► PaymentMethod` | `transactions.payment_method_id` → `payment_methods.id` |
-| `Transaction ──has──► Item` | `items.transaction_id` → `transactions.id` |
-| `Transaction ──categorized_as──► Category` | `transaction_categories` |
-| `Transaction ──for──► Beneficiary` | `transaction_beneficiaries` |
-| `Transaction ──at──► Merchant` | `transactions.merchant_id` → `merchants.id` |
-| `Category ──parent──► Category` | `categories.parent_id` → `categories.id` |
+
+| Graph edge                                 | Physical representation                                 |
+| ------------------------------------------ | ------------------------------------------------------- |
+| `Transaction ──paid_via──► PaymentMethod`  | `transactions.payment_method_id` → `payment_methods.id` |
+| `Transaction ──has──► Item`                | `items.transaction_id` → `transactions.id`              |
+| `Transaction ──categorized_as──► Category` | `transaction_categories`                                |
+| `Transaction ──for──► Beneficiary`         | `transaction_beneficiaries`                             |
+| `Transaction ──at──► Merchant`             | `transactions.merchant_id` → `merchants.id`             |
+| `Category ──parent──► Category`            | `categories.parent_id` → `categories.id`                |
+
 
 The category and beneficiary relations use separate relationship tables because a transaction can have multiple categories and multiple beneficiaries. The beneficiary relationship also has data of its own: the amount allocated to that person. Merchant aliases are stored in `merchant_aliases` and point at `merchants`.
 
@@ -69,19 +73,25 @@ T1, T2, and T3 reuse one UPI payment-method node. T2, T3, and T4 each have two i
 
 ### Payment-method nodes
 
-| id | method |
-| --- | --- |
-| `P1` | upi |
-| `P2` | cash |
+
+| id   | method |
+| ---- | ------ |
+| `P1` | upi    |
+| `P2` | cash   |
+
+
+
 
 ### Category nodes
 
-| id | name | parent_id |
-| --- | --- | --- |
-| `C1` | Food | `NULL` |
-| `C2` | Food delivery | `C1` |
-| `C3` | Restaurants | `C1` |
-| `C4` | Lunch | `C1` |
+
+| id   | name          | parent_id |
+| ---- | ------------- | --------- |
+| `C1` | Food          | `NULL`    |
+| `C2` | Food delivery | `C1`      |
+| `C3` | Restaurants   | `C1`      |
+| `C4` | Lunch         | `C1`      |
+
 
 This creates a category hierarchy:
 
