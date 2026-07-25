@@ -105,3 +105,25 @@ CREATE INDEX IF NOT EXISTS idx_transaction_beneficiaries_beneficiary
 
 CREATE INDEX IF NOT EXISTS idx_merchant_aliases_merchant
     ON merchant_aliases (merchant_id);
+
+-- ---------------------------------------------------------------------------
+-- Agent evaluation / chat turns (not graph nodes)
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS evaluations (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id         TEXT NOT NULL,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    user_prompt     TEXT NOT NULL,
+    agent_response  TEXT,
+    tool_name       TEXT,
+    tool_args_json  TEXT,
+    tool_result     TEXT,
+    transaction_id  INTEGER REFERENCES transactions (id) ON DELETE SET NULL,
+    verdict         TEXT NOT NULL DEFAULT 'pending'
+                        CHECK (verdict IN ('pending', 'ok', 'not_ok')),
+    notes           TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_evaluations_chat_id
+    ON evaluations (chat_id);
