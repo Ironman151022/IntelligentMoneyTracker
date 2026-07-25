@@ -1,0 +1,350 @@
+.eval {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  animation: eval-rise 420ms ease both;
+  width: 100%;
+}
+
+.eval-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.eval-meta {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.eval-error {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--danger) 12%, white);
+  color: var(--danger);
+}
+
+.eval-table-wrap {
+  overflow-x: auto;
+  border: 1px solid color-mix(in srgb, var(--mist) 70%, transparent);
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, white 72%, transparent);
+}
+
+.eval-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  table-layout: fixed;
+}
+
+.eval-table th,
+.eval-table td {
+  padding: 0.7rem 0.75rem;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid color-mix(in srgb, var(--mist) 55%, transparent);
+}
+
+.eval-table th {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--fog) 65%, white);
+  white-space: nowrap;
+}
+
+.eval-table th:nth-child(1),
+.eval-table td:nth-child(1) {
+  width: 7%;
+}
+
+.eval-table th:nth-child(2),
+.eval-table td:nth-child(2) {
+  width: 10%;
+}
+
+.eval-table th:nth-child(3),
+.eval-table td:nth-child(3) {
+  width: 16%;
+}
+
+.eval-table th:nth-child(4),
+.eval-table td:nth-child(4) {
+  width: 11%;
+}
+
+.eval-table th:nth-child(5),
+.eval-table td:nth-child(5) {
+  width: 12%;
+}
+
+.eval-table th:nth-child(6),
+.eval-table td:nth-child(6) {
+  width: 8%;
+}
+
+.eval-table th:nth-child(7),
+.eval-table td:nth-child(7) {
+  width: 18%;
+}
+
+.eval-table th:nth-child(8),
+.eval-table td:nth-child(8) {
+  width: 8%;
+}
+
+.eval-table th:nth-child(9),
+.eval-table td:nth-child(9) {
+  width: 10%;
+}
+
+.eval-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.eval-table tbody tr.is-open td {
+  background: color-mix(in srgb, var(--lime) 10%, white);
+}
+
+.eval-empty {
+  text-align: center;
+  color: var(--muted);
+  padding: 2rem 1rem !important;
+}
+
+.eval-mono {
+  font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  word-break: break-word;
+}
+
+.eval-output {
+  color: var(--ink-soft);
+}
+
+.eval-muted {
+  color: var(--muted);
+  white-space: nowrap;
+  font-size: 0.82rem;
+}
+
+.eval-expand {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+  line-height: 1.4;
+  max-width: 100%;
+}
+
+.eval-expand:hover {
+  color: var(--lime-deep);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.eval-notes-cell {
+  min-width: 0;
+}
+
+.eval-notes {
+  display: block;
+  width: 100%;
+  min-height: 2.6rem;
+  resize: vertical;
+  border: 1px solid color-mix(in srgb, var(--mist) 80%, transparent);
+  border-radius: 0.45rem;
+  background: color-mix(in srgb, white 88%, transparent);
+  color: var(--ink);
+  padding: 0.4rem 0.5rem;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.eval-notes:focus {
+  outline: 2px solid color-mix(in srgb, var(--lime-deep) 55%, transparent);
+  outline-offset: 1px;
+  border-color: var(--lime-deep);
+}
+
+.eval-notes:disabled {
+  opacity: 0.6;
+}
+
+.eval-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.28rem 0.5rem;
+  border-radius: 0.35rem;
+}
+
+.verdict-pending {
+  background: color-mix(in srgb, var(--mist) 55%, white);
+  color: var(--muted);
+}
+
+.verdict-ok {
+  background: color-mix(in srgb, var(--lime) 55%, white);
+  color: var(--ink-soft);
+}
+
+.verdict-not_ok {
+  background: color-mix(in srgb, var(--danger) 18%, white);
+  color: var(--danger);
+}
+
+.eval-actions {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.eval-btn {
+  appearance: none;
+  border: 1px solid var(--mist);
+  background: white;
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.32rem 0.55rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    opacity 140ms ease;
+}
+
+.eval-btn:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.eval-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.eval-btn.ok:hover:not(:disabled),
+.eval-btn.ok:disabled {
+  border-color: var(--lime-deep);
+}
+
+.eval-btn.not-ok:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.eval-detail-row td {
+  background: color-mix(in srgb, var(--fog) 40%, white);
+  padding: 0 !important;
+}
+
+.eval-detail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem 1.25rem;
+  padding: 1rem 1.1rem 1.15rem;
+}
+
+.eval-detail h3 {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.eval-detail pre {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, white 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--mist) 50%, transparent);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 12rem;
+  overflow: auto;
+}
+
+.eval-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  padding: 0.25rem 0 0.5rem;
+}
+
+.eval-page-btn {
+  appearance: none;
+  border: 1px solid var(--mist);
+  background: color-mix(in srgb, white 70%, transparent);
+  color: var(--ink);
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 0.55rem;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease,
+    opacity 140ms ease;
+}
+
+.eval-page-btn:hover:not(:disabled) {
+  border-color: var(--ink);
+  background: white;
+}
+
+.eval-page-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.eval-page-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  min-width: 6.5rem;
+  text-align: center;
+}
+
+@keyframes eval-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 720px) {
+  .eval-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .eval-table {
+    table-layout: auto;
+  }
+}
