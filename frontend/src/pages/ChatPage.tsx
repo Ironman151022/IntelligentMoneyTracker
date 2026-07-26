@@ -1,21 +1,38 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import "../styles/chat.css";
 
+type AgentContent = {
+  action?: string;
+  clarification_request?: string;
+  reason?: string;
+  [key: string]: unknown;
+};
+
 type LogResponse = {
   chat_id: string;
   user_prompt: string;
   combined_prompt: string;
-  tool_name: string | null;
-  tool_args: Record<string, unknown> | null;
-  tool_result: string | number | null;
   transaction_id: number | null;
-  agent_response: string | Record<string, unknown> | null;
+  agent_response_content: AgentContent | string | null;
 };
 
-function formatAgentResponse(value: LogResponse["agent_response"]): string {
-  if (value == null) return "—";
-  if (typeof value === "string") return value;
-  return JSON.stringify(value, null, 2);
+function contentAction(content: LogResponse["agent_response_content"]): string | null {
+  if (content && typeof content === "object" && typeof content.action === "string") {
+    return content.action;
+  }
+  return null;
+}
+
+function prettyAgentResponse(content: LogResponse["agent_response_content"]): string {
+  if (content == null) return "null";
+  if (typeof content === "string") {
+    try {
+      return JSON.stringify(JSON.parse(content), null, 2);
+    } catch {
+      return content;
+    }
+  }
+  return JSON.stringify(content, null, 2);
 }
 
 function nextChatId() {
@@ -24,10 +41,10 @@ function nextChatId() {
   return `chat_${n}`;
 }
 
-function resultTone(toolName: string | null): string {
-  if (toolName === "log_transaction") return "tone-success";
-  if (toolName === "ask_clarification") return "tone-clarify";
-  if (toolName === "unsupported_request") return "tone-error";
+function resultTone(action: string | null): string {
+  if (action === "log_transaction") return "tone-success";
+  if (action === "ask_clarification") return "tone-clarify";
+  if (action === "unsupported_request") return "tone-error";
   return "tone-neutral";
 }
 
@@ -45,13 +62,15 @@ export function ChatPage() {
   const [submittedPrompt, setSubmittedPrompt] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<LogResponse | null>(null);
 
+  const action = contentAction(lastResult?.agent_response_content ?? null);
+
   const focusInput = useCallback(() => {
-    if (lastResult?.tool_name === "ask_clarification") {
+    if (action === "ask_clarification") {
       clarifyRef.current?.focus();
       return;
     }
     inputRef.current?.focus();
-  }, [lastResult]);
+  }, [action]);
 
   const sendPrompt = useCallback(async (text: string, activeChatId: string) => {
     setLoading(true);
@@ -75,15 +94,16 @@ export function ChatPage() {
       setLastResult(data);
       setClarifyPrompt("");
 
-      if (data.tool_name === "log_transaction" && data.transaction_id != null) {
+      const nextAction = contentAction(data.agent_response_content);
+      if (nextAction === "log_transaction" && data.transaction_id != null) {
         setChatId(null);
       }
-      if (data.tool_name === "unsupported_request") {
+      if (nextAction === "unsupported_request") {
         setChatId(null);
       }
 
       requestAnimationFrame(() => {
-        if (data.tool_name === "ask_clarification") {
+        if (nextAction === "ask_clarification") {
           clarifyRef.current?.focus();
         } else {
           inputRef.current?.focus();
@@ -179,7 +199,11 @@ export function ChatPage() {
         <p className="chat-kicker">{chatId ?? "new chat"}</p>
 
         {submittedPrompt ? (
-          <div className="chat-user-bubble">{submittedPrompt}</div>
+          <div className="chat-user-bubble">
+            {action === "ask_clarification" && lastResult?.combined_prompt
+              ? lastResult.combined_prompt
+              : submittedPrompt}
+          </div>
         ) : null}
 
         {submittedPrompt && error ? (
@@ -191,29 +215,25 @@ export function ChatPage() {
         {lastResult ? (
           <div className="chat-response-row">
             <div
-              className={`chat-result glass ${resultTone(lastResult.tool_name)}`}
+              className={`chat-result glass ${resultTone(action)}`}
               aria-live="polite"
             >
-              <p className="chat-result-field">
-                <span className="chat-result-key">Tool Used</span>
+              <p className="chat-result-field transaction-id">
+                <span className="chat-result-key">transaction_id</span>
                 <span className="chat-result-val">
-                  {lastResult.tool_name ?? "—"}
-                </span>
-              </p>
-              <p className="chat-result-field">
-                <span className="chat-result-key">Tool Result</span>
-                <span className="chat-result-val">
-                  {String(lastResult.tool_result ?? "—")}
+                  {lastResult.transaction_id == null
+                    ? "null"
+                    : String(lastResult.transaction_id)}
                 </span>
               </p>
               <p className="chat-result-field agent-response">
                 <span className="chat-result-key">agent_response</span>
-                <span className="chat-result-val agent-response-val">
-                  {formatAgentResponse(lastResult.agent_response)}
-                </span>
+                <pre className="chat-result-val agent-response-val">
+                  {prettyAgentResponse(lastResult.agent_response_content)}
+                </pre>
               </p>
 
-              {lastResult.tool_name === "ask_clarification" ? (
+              {action === "ask_clarification" ? (
                 <form
                   className="chat-clarify"
                   onSubmit={(event) => {
