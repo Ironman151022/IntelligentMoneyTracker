@@ -6,15 +6,19 @@ const COL_COUNT = 9;
 
 type Verdict = "pending" | "ok" | "not_ok";
 
+type AgentContent = {
+  action?: string;
+  [key: string]: unknown;
+};
+
 type EvaluationRow = {
   id: number;
   chat_id: string;
   created_at: string;
   user_prompt: string;
-  agent_response: string | Record<string, unknown> | null;
-  tool_name: string | null;
-  tool_args: Record<string, unknown> | string | null;
-  tool_result: string | null;
+  combined_prompt: string | null;
+  agent_response_raw: string | Record<string, unknown> | null;
+  agent_response_content: AgentContent | string | null;
   transaction_id: number | null;
   verdict: Verdict;
   notes: string | null;
@@ -31,12 +35,24 @@ type EvaluationsResponse = {
 function formatCell(value: unknown): string {
   if (value == null || value === "") return "—";
   if (typeof value === "string") return value;
-  return JSON.stringify(value);
+  return JSON.stringify(value, null, 2);
 }
 
-function truncate(text: string, max = 72): string {
+function truncate(text: string, max = 48): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max - 1)}…`;
+}
+
+function contentAction(content: EvaluationRow["agent_response_content"]): string | null {
+  if (content && typeof content === "object" && typeof content.action === "string") {
+    return content.action;
+  }
+  return null;
+}
+
+function prettyWhen(value: string): string {
+  // Prefer a short local-ish stamp if SQLite datetime is present.
+  return value.length > 16 ? value.slice(0, 16).replace("T", " ") : value;
 }
 
 export function EvaluationPage() {
@@ -129,6 +145,10 @@ export function EvaluationPage() {
     [noteDrafts, patchEvaluation],
   );
 
+  const toggleRow = useCallback((id: number) => {
+    setExpandedId((cur) => (cur === id ? null : id));
+  }, []);
+
   const total = data?.total ?? 0;
   const totalPages = data?.total_pages ?? 1;
   const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
@@ -159,9 +179,9 @@ export function EvaluationPage() {
               <th scope="col">Chat</th>
               <th scope="col">When</th>
               <th scope="col">Prompt</th>
-              <th scope="col">tool_name</th>
-              <th scope="col">tool_output</th>
-              <th scope="col">Transaction ID</th>
+              <th scope="col">Action</th>
+              <th scope="col">Combined</th>
+              <th scope="col">Txn</th>
               <th scope="col">Notes</th>
               <th scope="col">Verdict</th>
               <th scope="col">Mark</th>
@@ -187,36 +207,36 @@ export function EvaluationPage() {
             {data?.items.map((row) => {
               const open = expandedId === row.id;
               const busy = updatingId === row.id;
+              const action = contentAction(row.agent_response_content);
               return (
                 <Fragment key={row.id}>
-                  <tr className={open ? "is-open" : undefined}>
+                  <tr
+                    className={`eval-summary${open ? " is-open" : ""}`}
+                    onClick={() => toggleRow(row.id)}
+                  >
                     <td className="eval-mono">{row.chat_id}</td>
-                    <td className="eval-muted">{row.created_at}</td>
+                    <td className="eval-muted">{prettyWhen(row.created_at)}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="eval-expand"
-                        onClick={() =>
-                          setExpandedId((cur) => (cur === row.id ? null : row.id))
-                        }
-                        aria-expanded={open}
-                      >
+                      <span className="eval-expand" aria-expanded={open}>
                         {truncate(row.user_prompt)}
-                      </button>
+                      </span>
                     </td>
-                    <td className="eval-mono">{row.tool_name ?? "—"}</td>
+                    <td className="eval-mono">{action ?? "—"}</td>
                     <td className="eval-mono eval-output">
-                      {truncate(formatCell(row.tool_result), 48)}
+                      {truncate(row.combined_prompt ?? "—", 36)}
                     </td>
                     <td className="eval-mono">
                       {row.transaction_id ?? "—"}
                     </td>
-                    <td className="eval-notes-cell">
+                    <td
+                      className="eval-notes-cell"
+                      onClick={(event) => event.stopPropagation()}
+                    >
                       <textarea
                         className="eval-notes"
-                        rows={2}
+                        rows={1}
                         value={noteDrafts[row.id] ?? ""}
-                        placeholder="Add note…"
+                        placeholder="Note…"
                         disabled={busy}
                         aria-label={`Notes for ${row.chat_id}`}
                         onChange={(event) =>
@@ -233,7 +253,7 @@ export function EvaluationPage() {
                         {row.verdict}
                       </span>
                     </td>
-                    <td>
+                    <td onClick={(event) => event.stopPropagation()}>
                       <div className="eval-actions">
                         <button
                           type="button"
@@ -263,20 +283,44 @@ export function EvaluationPage() {
                       <td colSpan={COL_COUNT}>
                         <div className="eval-detail">
                           <div>
-                            <h3>User prompt</h3>
+                            <h3>chat_id</h3>
+                            <pre>{row.chat_id}</pre>
+                          </div>
+                          <div>
+                            <h3>created_at</h3>
+                            <pre>{row.created_at}</pre>
+                          </div>
+                          <div>
+                            <h3>transaction_id</h3>
+                            <pre>
+                              {row.transaction_id == null
+                                ? "null"
+                                : String(row.transaction_id)}
+                            </pre>
+                          </div>
+                          <div>
+                            <h3>action</h3>
+                            <pre>{action ?? "—"}</pre>
+                          </div>
+                          <div className="eval-detail-wide">
+                            <h3>user_prompt</h3>
                             <pre>{row.user_prompt}</pre>
                           </div>
-                          <div>
-                            <h3>Agent response</h3>
-                            <pre>{formatCell(row.agent_response)}</pre>
+                          <div className="eval-detail-wide">
+                            <h3>combined_prompt</h3>
+                            <pre>{row.combined_prompt ?? "—"}</pre>
+                          </div>
+                          <div className="eval-detail-wide">
+                            <h3>agent_response_content</h3>
+                            <pre>{formatCell(row.agent_response_content)}</pre>
+                          </div>
+                          <div className="eval-detail-wide">
+                            <h3>agent_response_raw</h3>
+                            <pre>{formatCell(row.agent_response_raw)}</pre>
                           </div>
                           <div>
-                            <h3>Tool args</h3>
-                            <pre>{formatCell(row.tool_args)}</pre>
-                          </div>
-                          <div>
-                            <h3>tool_output</h3>
-                            <pre>{formatCell(row.tool_result)}</pre>
+                            <h3>verdict</h3>
+                            <pre>{row.verdict}</pre>
                           </div>
                         </div>
                       </td>

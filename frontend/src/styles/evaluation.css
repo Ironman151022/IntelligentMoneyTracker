@@ -1,9 +1,10 @@
 .eval {
   display: flex;
   flex-direction: column;
-  gap: 1.1rem;
+  gap: 0.85rem;
   animation: eval-rise 420ms ease both;
-  width: 100%;
+  width: min(1100px, 100%);
+  margin: 0 auto;
 }
 
 .eval-header {
@@ -15,7 +16,7 @@
 
 .eval-meta {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -24,36 +25,37 @@
 
 .eval-error {
   margin: 0;
-  padding: 0.75rem 1rem;
+  padding: 0.65rem 0.85rem;
   border-radius: 0.65rem;
   background: color-mix(in srgb, var(--danger) 12%, white);
   color: var(--danger);
+  font-size: 0.88rem;
 }
 
 .eval-table-wrap {
   overflow-x: auto;
   border: 1px solid color-mix(in srgb, var(--mist) 70%, transparent);
-  border-radius: 0.85rem;
+  border-radius: 0.75rem;
   background: color-mix(in srgb, white 72%, transparent);
 }
 
 .eval-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.9rem;
+  font-size: 0.74rem;
   table-layout: fixed;
 }
 
 .eval-table th,
 .eval-table td {
-  padding: 0.7rem 0.75rem;
+  padding: 0.35rem 0.45rem;
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
   border-bottom: 1px solid color-mix(in srgb, var(--mist) 55%, transparent);
 }
 
 .eval-table th {
-  font-size: 0.72rem;
+  font-size: 0.6rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -64,12 +66,12 @@
 
 .eval-table th:nth-child(1),
 .eval-table td:nth-child(1) {
-  width: 7%;
+  width: 9%;
 }
 
 .eval-table th:nth-child(2),
 .eval-table td:nth-child(2) {
-  width: 10%;
+  width: 11%;
 }
 
 .eval-table th:nth-child(3),
@@ -79,22 +81,22 @@
 
 .eval-table th:nth-child(4),
 .eval-table td:nth-child(4) {
-  width: 11%;
+  width: 12%;
 }
 
 .eval-table th:nth-child(5),
 .eval-table td:nth-child(5) {
-  width: 12%;
+  width: 16%;
 }
 
 .eval-table th:nth-child(6),
 .eval-table td:nth-child(6) {
-  width: 8%;
+  width: 6%;
 }
 
 .eval-table th:nth-child(7),
 .eval-table td:nth-child(7) {
-  width: 18%;
+  width: 14%;
 }
 
 .eval-table th:nth-child(8),
@@ -104,11 +106,19 @@
 
 .eval-table th:nth-child(9),
 .eval-table td:nth-child(9) {
-  width: 10%;
+  width: 8%;
 }
 
 .eval-table tbody tr:last-child td {
   border-bottom: none;
+}
+
+.eval-summary {
+  cursor: pointer;
+}
+
+.eval-summary:hover td {
+  background: color-mix(in srgb, var(--fog) 35%, white);
 }
 
 .eval-table tbody tr.is-open td {
@@ -118,43 +128,35 @@
 .eval-empty {
   text-align: center;
   color: var(--muted);
-  padding: 2rem 1rem !important;
+  padding: 1.5rem 1rem !important;
 }
 
 .eval-mono {
   font-variant-numeric: tabular-nums;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.82rem;
+  font-size: 0.7rem;
   word-break: break-word;
-}
-
-.eval-output {
-  color: var(--ink-soft);
 }
 
 .eval-muted {
   color: var(--muted);
   white-space: nowrap;
-  font-size: 0.82rem;
+  font-size: 0.7rem;
 }
 
 .eval-expand {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  margin: 0;
-  text-align: left;
   color: var(--ink);
-  cursor: pointer;
-  line-height: 1.4;
+  line-height: 1.35;
+  display: inline-block;
   max-width: 100%;
 }
 
-.eval-expand:hover {
+.eval-summary:hover .eval-expand {
   color: var(--lime-deep);
-  text-decoration: underline;
-  text-underline-offset: 2px;
+}
+
+.eval-output {
+  color: var(--ink-soft);
 }
 
 .eval-notes-cell {
@@ -164,15 +166,16 @@
 .eval-notes {
   display: block;
   width: 100%;
-  min-height: 2.6rem;
+  min-height: 1.7rem;
   resize: vertical;
   border: 1px solid color-mix(in srgb, var(--mist) 80%, transparent);
-  border-radius: 0.45rem;
+  border-radius: 0.4rem;
   background: color-mix(in srgb, white 88%, transparent);
   color: var(--ink);
-  padding: 0.4rem 0.5rem;
-  font-size: 0.82rem;
-  line-height: 1.35;
+  padding: 0.22rem 0.35rem;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  box-sizing: border-box;
 }
 
 .eval-notes:focus {
@@ -187,12 +190,12 @@
 
 .eval-badge {
   display: inline-block;
-  font-size: 0.72rem;
+  font-size: 0.6rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 0.28rem 0.5rem;
-  border-radius: 0.35rem;
+  padding: 0.16rem 0.35rem;
+  border-radius: 0.28rem;
 }
 
 .verdict-pending {
@@ -212,7 +215,7 @@
 
 .eval-actions {
   display: flex;
-  gap: 0.35rem;
+  gap: 0.3rem;
   flex-wrap: wrap;
 }
 
@@ -221,10 +224,10 @@
   border: 1px solid var(--mist);
   background: white;
   color: var(--ink);
-  font-size: 0.78rem;
+  font-size: 0.65rem;
   font-weight: 600;
-  padding: 0.32rem 0.55rem;
-  border-radius: 0.4rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 0.3rem;
   cursor: pointer;
   transition:
     background 140ms ease,
@@ -259,13 +262,17 @@
 .eval-detail {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.85rem 1.25rem;
-  padding: 1rem 1.1rem 1.15rem;
+  gap: 0.65rem 0.9rem;
+  padding: 0.75rem 0.85rem 0.9rem;
+}
+
+.eval-detail-wide {
+  grid-column: 1 / -1;
 }
 
 .eval-detail h3 {
-  margin: 0 0 0.35rem;
-  font-size: 0.72rem;
+  margin: 0 0 0.25rem;
+  font-size: 0.65rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -274,15 +281,15 @@
 
 .eval-detail pre {
   margin: 0;
-  padding: 0.65rem 0.75rem;
-  border-radius: 0.5rem;
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.45rem;
   background: color-mix(in srgb, white 80%, transparent);
   border: 1px solid color-mix(in srgb, var(--mist) 50%, transparent);
-  font-size: 0.78rem;
-  line-height: 1.45;
+  font-size: 0.72rem;
+  line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 12rem;
+  max-height: 10rem;
   overflow: auto;
 }
 
@@ -290,8 +297,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.85rem;
-  padding: 0.25rem 0 0.5rem;
+  gap: 0.75rem;
+  padding: 0.15rem 0 0.35rem;
 }
 
 .eval-page-btn {
@@ -300,9 +307,9 @@
   background: color-mix(in srgb, white 70%, transparent);
   color: var(--ink);
   font-weight: 600;
-  font-size: 0.88rem;
-  padding: 0.45rem 0.9rem;
-  border-radius: 0.55rem;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 0.5rem;
   cursor: pointer;
   transition:
     background 140ms ease,
@@ -321,10 +328,10 @@
 }
 
 .eval-page-label {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--muted);
-  min-width: 6.5rem;
+  min-width: 6rem;
   text-align: center;
 }
 
@@ -340,6 +347,10 @@
 }
 
 @media (max-width: 720px) {
+  .eval {
+    width: 100%;
+  }
+
   .eval-detail {
     grid-template-columns: 1fr;
   }
