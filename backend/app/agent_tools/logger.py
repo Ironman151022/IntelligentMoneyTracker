@@ -1,4 +1,5 @@
 from typing import Literal
+
 from pydantic import BaseModel
 
 from app.services.database import get_connection
@@ -197,13 +198,3 @@ def log_transaction(
         conn.close()
 
     return transaction_id
-
-
-def ask_clarification(clarification_request: str):
-    """Ask the user one short clarifying question when a required field is missing."""
-    return clarification_request
-
-
-def unsupported_request(reason: str):
-    """Explain that the request is outside Version 1 logging support."""
-    return reason

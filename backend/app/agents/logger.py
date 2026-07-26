@@ -1,127 +1,83 @@
-import json
-import re
+from typing import Annotated, Literal, Union
 
 from ollama import chat
+from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
-from app.agent_tools.logger import ask_clarification, log_transaction, unsupported_request
+from app.agent_tools.logger import Item, log_transaction
 from app.core.config import settings
 
 with open(settings.logger_system_prompt_path, "r") as file:
     system_prompt = file.read()
 
 MODEL = settings.logger_model
-AGENT_TOOLS = [log_transaction, ask_clarification, unsupported_request]
-TOOL_DISPATCH = {
-    "log_transaction": log_transaction,
-    "ask_clarification": ask_clarification,
-    "unsupported_request": unsupported_request,
-}
-
-_TOOL_NAMES = tuple(TOOL_DISPATCH.keys())
 
 
-def _extract_named_string(body: str, key: str) -> str | None:
-    patterns = [
-        rf'{key}\s*=\s*"((?:[^"\\]|\\.)*)"',
-        rf"{key}\s*=\s*'((?:[^'\\]|\\.)*)'",
-        rf'{key}\s*:\s*<\|"\|>(.*?)<\|"\|>',
-        rf'{key}\s*:\s*"((?:[^"\\]|\\.)*)"',
-        rf"{key}\s*:\s*'((?:[^'\\]|\\.)*)'",
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, body, re.DOTALL)
-        if match:
-            return match.group(1)
-    return None
+class LogTransaction(BaseModel):
+    action: Literal["log_transaction"]
+    amount: float
+    currency: str = "INR"
+    status: Literal["pending", "completed", "failed", "refunded"] = "completed"
+    transaction_type: Literal["expense", "income", "transfer", "refund"] = "expense"
+    payment_method: Literal["cash", "card", "upi"] | None = None
+    beneficiary: str | None = None
+    merchant: str | None = None
+    category: str | None = None
+    sub_category: str | None = None
+    items: list[Item] | None = None
 
 
-def _parse_text_tool_call(content: str) -> tuple[str, dict] | None:
-    """Fallback when the model writes a tool call as plain text instead of tool_calls."""
-    if not content:
-        return None
+class AskClarification(BaseModel):
+    action: Literal["ask_clarification"]
+    clarification_request: str
 
-    content = content.strip()
-    match = re.match(
-        rf"^({'|'.join(_TOOL_NAMES)})\s*[(\{{](.*)[)\}}]\s*$",
-        content,
-        re.DOTALL,
-    )
-    if not match:
-        return None
 
-    tool_name, body = match.group(1), match.group(2).strip()
+class UnsupportedRequest(BaseModel):
+    action: Literal["unsupported_request"]
+    reason: str
 
-    if tool_name == "unsupported_request":
-        reason = _extract_named_string(body, "reason")
-        if reason is not None:
-            return tool_name, {"reason": reason}
 
-    if tool_name == "ask_clarification":
-        clarification = _extract_named_string(body, "clarification_request")
-        if clarification is not None:
-            return tool_name, {"clarification_request": clarification}
+AgentOutput = Annotated[
+    Union[LogTransaction, AskClarification, UnsupportedRequest],
+    Field(discriminator="action"),
+]
 
-    if tool_name == "log_transaction":
-        # Prefer JSON-looking payloads if the model emitted them as text.
-        try:
-            return tool_name, json.loads(body)
-        except json.JSONDecodeError:
-            return None
+agent_output_adapter = TypeAdapter(AgentOutput)
+OUTPUT_SCHEMA = agent_output_adapter.json_schema()
 
+
+def handle_agent_output(
+    output: LogTransaction | AskClarification | UnsupportedRequest,
+) -> int | None:
+    if isinstance(output, LogTransaction):
+        return log_transaction(**output.model_dump(exclude={"action"}))
     return None
 
 
 def run_logger_agent(messages: list[dict]):
-    """Run the logger agent on one user utterance and execute the tool it chooses."""
+    """Run the logger agent and persist a transaction when action is log_transaction."""
     messages = [{"role": "system", "content": system_prompt}] + messages
     response = chat(
         model=MODEL,
         messages=messages,
-        tools=AGENT_TOOLS,
+        format=OUTPUT_SCHEMA,
         think=False,
         options={"temperature": settings.logger_temperature},
     )
 
-    agent_response = response.message.model_dump_json()
-    tool_name = None
-    tool_args = None
+    agent_response_raw = response.message.model_dump_json()
+    agent_response_content = response.message.content
 
-    if response.message.tool_calls:
-        tool_call = response.message.tool_calls[0]
-        tool_name = tool_call.function.name
-        tool_args = tool_call.function.arguments
-        if isinstance(tool_args, str):
-            tool_args = json.loads(tool_args)
-    # else:
-    #     parsed = _parse_text_tool_call(response.message.content or "")
-    #     if parsed:
-    #         tool_name, tool_args = parsed
-
-    if not tool_name:
+    try:
+        parsed = agent_output_adapter.validate_json(agent_response_content or "")
+    except ValidationError:
         return {
-            "agent_response": agent_response,
-            "tool_name": None,
-            "tool_args": None,
-            "tool_result": None,
-            "tool_call": False,
+            "agent_response_raw": agent_response_raw,
+            "agent_response_content": agent_response_content,
+            "transaction_id": None,
         }
-
-    handler = TOOL_DISPATCH.get(tool_name)
-    if handler is None:
-        return {
-            "agent_response": agent_response,
-            "tool_name": tool_name,
-            "tool_args": tool_args,
-            "tool_result": f"Unknown tool: {tool_name}",
-            "tool_call": True,
-        }
-
-    tool_result = handler(**tool_args)
 
     return {
-        "agent_response": agent_response,
-        "tool_name": tool_name,
-        "tool_args": tool_args,
-        "tool_result": tool_result,
-        "tool_call": True,
+        "agent_response_raw": agent_response_raw,
+        "agent_response_content": parsed.model_dump_json(),
+        "transaction_id": handle_agent_output(parsed),
     }
