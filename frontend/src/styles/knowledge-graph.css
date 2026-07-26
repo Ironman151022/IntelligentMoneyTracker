@@ -1,0 +1,317 @@
+.kg {
+  /* Graph column (~1100) + gap + reserved card rail — card never overlays the canvas */
+  width: min(calc(1100px + 1rem + 20rem), 100%);
+  margin: 0 auto;
+  padding: 0.25rem 0 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-height: calc(100vh - var(--nav-height) - 1.5rem);
+}
+
+.kg-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.kg-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kg-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+
+.kg-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.kg-meta {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.kg-refresh {
+  appearance: none;
+  border: 1.5px solid var(--ink);
+  background: color-mix(in srgb, white 70%, transparent);
+  color: var(--ink);
+  border-radius: 0.7rem;
+  padding: 0.45rem 0.85rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.kg-refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.kg-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.9rem;
+}
+
+.kg-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.kg-legend-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent);
+}
+
+.kg-error {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.85rem;
+  background: color-mix(in srgb, var(--danger) 12%, white);
+  color: var(--danger);
+  font-size: 0.92rem;
+}
+
+.kg-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1100px) 20rem;
+  gap: 1rem;
+  align-items: start;
+  flex: 1;
+  min-height: 34rem;
+}
+
+.kg-canvas {
+  position: relative;
+  width: 100%;
+  min-height: 34rem;
+  height: calc(100vh - var(--nav-height) - 8.5rem);
+  border-radius: 1.25rem;
+  border: 1.5px solid color-mix(in srgb, var(--ink) 28%, transparent);
+  background: transparent;
+  overflow: hidden;
+}
+
+.kg-empty,
+.kg-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.95rem;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Node inspector — own rail to the right of the graph (never overlays canvas) */
+.kg-detail {
+  position: sticky;
+  top: calc(var(--nav-height) + 1rem);
+  width: 100%;
+  max-height: calc(100vh - var(--nav-height) - 7rem);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-radius: 1.15rem;
+  border: 1.5px solid var(--ink);
+  background:
+    linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.78) 0%,
+      rgba(255, 255, 255, 0.42) 55%,
+      rgba(255, 255, 255, 0.28) 100%
+    );
+  backdrop-filter: blur(28px) saturate(1.85);
+  -webkit-backdrop-filter: blur(28px) saturate(1.85);
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--ink) 14%, transparent),
+    0 18px 48px rgba(12, 31, 26, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  transform: translateY(0.85rem);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform 280ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 200ms ease;
+}
+
+.kg-detail.is-open {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.kg-detail-handle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.85rem 1rem 0.65rem;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+
+.kg-detail-handle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.kg-detail-type {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kg-detail-label {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.kg-detail-toggle {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kg-detail-body {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.kg-detail.is-open.is-expanded .kg-detail-body {
+  grid-template-rows: 1fr;
+}
+
+.kg-detail-body-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.kg-detail-body-inner > * {
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+.kg-detail-body-inner > :last-child {
+  padding-bottom: 1rem;
+}
+
+.kg-detail-id {
+  margin: 0 0 0.55rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.kg-detail-data {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  max-height: min(52vh, 28rem);
+  overflow: auto;
+}
+
+.kg-detail-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.1rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 10%, transparent);
+}
+
+.kg-detail-row dt {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kg-detail-row dd {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.86rem;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+@media (max-width: 1100px) {
+  .kg {
+    width: 100%;
+  }
+
+  .kg-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .kg-detail {
+    position: fixed;
+    top: auto;
+    bottom: 1rem;
+    right: 0.75rem;
+    left: 0.75rem;
+    width: auto;
+    max-width: none;
+    z-index: 15;
+    transform: translateY(calc(100% + 1.5rem));
+  }
+
+  .kg-detail.is-open {
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 820px) {
+  .kg-canvas {
+    height: 62vh;
+    min-height: 24rem;
+  }
+}
