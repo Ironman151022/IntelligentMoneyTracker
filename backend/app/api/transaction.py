@@ -27,7 +27,16 @@ def _combined_user_prompt(conn, chat_id: str, user_prompt: str) -> str:
     previous = [row["user_prompt"] for row in rows]
     if not previous:
         return user_prompt
-    return "\n".join([*previous, user_prompt])
+    return ", ".join([*previous, user_prompt])
+
+
+def _parse_json_field(value: str | None):
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return value
 
 
 @router.post("/")
@@ -35,53 +44,38 @@ def create_transaction(body: CreateTransactionRequest):
     conn = get_connection()
     try:
         combined_prompt = _combined_user_prompt(conn, body.chat_id, body.user_prompt)
+        print(body.chat_id, ":", combined_prompt)
         result = run_logger_agent([{"role": "user", "content": combined_prompt}])
 
-        agent_response = result["agent_response"]
-        tool_name = result["tool_name"]
-        tool_args = result["tool_args"]
-        tool_result = result["tool_result"]
+        agent_response_raw = result["agent_response_raw"]
+        agent_response_content = result["agent_response_content"]
+        transaction_id = result["transaction_id"]
 
-        print(body.chat_id, agent_response)
-
-        transaction_id = None
-        if tool_name == "log_transaction" and isinstance(tool_result, int):
-            transaction_id = tool_result
+        print(body.chat_id, agent_response_content)
 
         conn.execute(
             """
             INSERT INTO evaluations (
-                chat_id, user_prompt, agent_response, tool_name,
-                tool_args_json, tool_result, transaction_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                chat_id, user_prompt, combined_prompt,
+                agent_response_raw, agent_response_content, transaction_id
+            ) VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 body.chat_id,
                 body.user_prompt,
-                agent_response,
-                tool_name,
-                json.dumps(tool_args) if tool_args is not None else None,
-                None if tool_result is None else str(tool_result),
+                combined_prompt,
+                agent_response_raw,
+                agent_response_content,
                 transaction_id,
             ),
         )
         conn.commit()
 
-        parsed_agent_response = None
-        if agent_response:
-            try:
-                parsed_agent_response = json.loads(agent_response)
-            except json.JSONDecodeError:
-                parsed_agent_response = agent_response
-
         return {
             "chat_id": body.chat_id,
             "user_prompt": body.user_prompt,
             "combined_prompt": combined_prompt,
-            "agent_response": parsed_agent_response,
-            "tool_name": tool_name,
-            "tool_args": tool_args,
-            "tool_result": tool_result,
+            "agent_response_content": _parse_json_field(agent_response_content),
             "transaction_id": transaction_id,
         }
     except Exception as e:
@@ -97,8 +91,9 @@ def get_chat_evaluations(chat_id: str):
     try:
         rows = conn.execute(
             """
-            SELECT id, chat_id, created_at, user_prompt, agent_response, tool_name,
-                   tool_args_json, tool_result, transaction_id, verdict, notes
+            SELECT id, chat_id, created_at, user_prompt, combined_prompt,
+                   agent_response_raw, agent_response_content, transaction_id,
+                   verdict, notes
             FROM evaluations
             WHERE chat_id = ?
             ORDER BY id ASC
@@ -108,11 +103,10 @@ def get_chat_evaluations(chat_id: str):
         evaluations = []
         for row in rows:
             item = dict(row)
-            if item.get("agent_response"):
-                try:
-                    item["agent_response"] = json.loads(item["agent_response"])
-                except json.JSONDecodeError:
-                    pass
+            item["agent_response_raw"] = _parse_json_field(item.get("agent_response_raw"))
+            item["agent_response_content"] = _parse_json_field(
+                item.get("agent_response_content")
+            )
             evaluations.append(item)
         return {"chat_id": chat_id, "evaluations": evaluations}
     except Exception as e:

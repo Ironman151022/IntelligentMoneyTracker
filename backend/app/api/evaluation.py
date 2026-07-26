@@ -18,21 +18,19 @@ class UpdateEvaluationRequest(BaseModel):
     notes: str | None = Field(default=None)
 
 
+def _parse_json_field(value):
+    if not value:
+        return None
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        return value
+
+
 def _serialize_row(row) -> dict:
     item = dict(row)
-    if item.get("agent_response"):
-        try:
-            item["agent_response"] = json.loads(item["agent_response"])
-        except (json.JSONDecodeError, TypeError):
-            pass
-    if item.get("tool_args_json"):
-        try:
-            item["tool_args"] = json.loads(item["tool_args_json"])
-        except (json.JSONDecodeError, TypeError):
-            item["tool_args"] = item["tool_args_json"]
-    else:
-        item["tool_args"] = None
-    item.pop("tool_args_json", None)
+    item["agent_response_raw"] = _parse_json_field(item.get("agent_response_raw"))
+    item["agent_response_content"] = _parse_json_field(item.get("agent_response_content"))
     return item
 
 
@@ -47,8 +45,9 @@ def list_evaluations(
         offset = (page - 1) * limit
         rows = conn.execute(
             """
-            SELECT id, chat_id, created_at, user_prompt, agent_response, tool_name,
-                   tool_args_json, tool_result, transaction_id, verdict, notes
+            SELECT id, chat_id, created_at, user_prompt, combined_prompt,
+                   agent_response_raw, agent_response_content, transaction_id,
+                   verdict, notes
             FROM evaluations
             ORDER BY id DESC
             LIMIT ? OFFSET ?
@@ -102,8 +101,9 @@ def update_evaluation(evaluation_id: int, body: UpdateEvaluationRequest):
 
         row = conn.execute(
             """
-            SELECT id, chat_id, created_at, user_prompt, agent_response, tool_name,
-                   tool_args_json, tool_result, transaction_id, verdict, notes
+            SELECT id, chat_id, created_at, user_prompt, combined_prompt,
+                   agent_response_raw, agent_response_content, transaction_id,
+                   verdict, notes
             FROM evaluations
             WHERE id = ?
             """,
