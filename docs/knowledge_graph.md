@@ -2,7 +2,7 @@
 
 This model represents financial data as connected entities. The database uses normal, typed tables for speed and low storage use; the foreign keys and relationship tables are the graph edges. A graph database and embeddings are not required for this model.
 
-Audio is fed into an AI model, which creates a central **Transaction** node and links it to the related entities below.
+Audio / text is turned into a central **Transaction** node (via online speech-to-text when needed, then the on-device LLM) and linked to the related entities below.
 
 ## Nodes
 

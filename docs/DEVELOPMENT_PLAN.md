@@ -1,7 +1,7 @@
 # Intelligent Money Tracker — Development Plan
 
-> Living document. Two phases: **Prototype** (Python, prove the brains) → **Develop** (React Native, ship on-device).
-> Golden rule: **use Gemma 3n E2B only** in both prototype and mobile builds so behaviour transfers.
+> Living document. Two phases: **Prototype** (Python, prove the brains) → **Develop** (React Native, ship).
+> Golden rule: **use Gemma 3n E2B only** for text understanding in both prototype and mobile builds so behaviour transfers.
 
 ---
 
@@ -9,12 +9,28 @@
 
 | Principle | Meaning |
 |---|---|
-| Privacy-first | On-device inference only. No cloud LLM calls. |
+| Privacy-first (ledger) | **Text LLM runs on device.** Transaction JSON, SQLite, and the graph never use a cloud LLM. |
+| Hybrid perception | **Voice STT and bill/receipt vision run online** — too large to co-reside with Gemma on mid-range phones. |
 | Cross-platform | One codebase (React Native) for iOS + Android. |
-| Offline-first | Core flows work with no network. |
-| Same-model rule | Prototype on Gemma 3n E2B (via Ollama) = ship Gemma 3n E2B on device. No alternative LLMs. |
+| Offline text path | Typed (or cached) text → on-device Gemma → DB still works without network. Voice/photo need connectivity. |
+| Same-model rule | Prototype on Gemma 3n E2B (via Ollama) = ship Gemma 3n E2B on device. No alternative LLMs for extraction. |
 | Time policy | Never extract, infer, or ask for a date or time. The app records its own capture time. |
 | Portable contract | Prompts, schemas, tools, DB schema transfer 1:1; runtime/serving does not. |
+
+### Inference placement
+
+| Model | Placement | Notes |
+|---|---|---|
+| Text LLM (Gemma 3n E2B) | **On device** | `text → JSON` extraction only |
+| Voice → text (Whisper-class) | **Online** | Prototype: local `faster-whisper` on the FastAPI host stands in for the future cloud STT API |
+| Image / bills (F2 OCR/vision) | **Online** | Receipts/payment screenshots; return text or structured fields to the device |
+| DB + knowledge graph | **On device** | Never sync raw ledger to a third-party LLM |
+
+```
+mic ──online STT──► text ─┐
+photo ─online vision─► text/fields ─┼─► on-device Gemma ─► SQLite ⇌ graph
+typed text ─────────────────────────┘
+```
 
 ---
 
@@ -23,8 +39,8 @@
 | ID | Feature | Description | Phase |
 |----|---------|-------------|-------|
 | W1 | Activation | Launch via settings or user-attached gesture/shortcut | Now |
-| F1 | Voice input | Speak → LLM parses → store transaction in graph+DB | Now |
-| F2 | Photo upload | Receipts/bills → OCR → LLM extract line items | Next |
+| F1 | Voice input | Speak → **online STT** → on-device LLM → store in graph+DB | Now |
+| F2 | Photo upload | Receipts/bills → **online OCR/vision** → on-device LLM extract | Next |
 | F3 | Auto payment detection | Trigger AI when a payment is detected | Next (Android-first) |
 
 > **Now = Prototype + Phase 1 build. Next = later terms.**
@@ -35,21 +51,22 @@
 
 | Layer | Prototype (Python) | Mobile (React Native) |
 |---|---|---|
-| LLM model | **Gemma 3n E2B only** | **Gemma 3n E2B only** |
+| LLM model | **Gemma 3n E2B only** (on machine / device) | **Gemma 3n E2B only** (on device) |
 | LLM runtime | Ollama (dev only) | MediaPipe LLM Inference *or* `llama.rn` (GGUF) |
 | Orchestration | Thin custom loop (avoid heavy LangChain) | Custom TS loop |
 | Structured output | JSON schema | GBNF grammar / MediaPipe function calling |
-| Voice → text | N/A (typed input) | `@react-native-voice/voice` or `whisper.rn` |
+| Voice → text | `faster-whisper` (e.g. `medium.en`) via `/voice/transcribe` on the **API host** (cloud stand-in) | **Online STT API** (same contract: audio in → text out) |
+| Image / bills | N/A yet | **Online** vision/OCR API → text/fields → on-device Gemma |
 | Database | **SQLite** (not Postgres) | `op-sqlite` (same schema) |
 | Graph | `nodes` + `edges` tables | same |
-| UI | Optional: FastAPI + React web demo | React Native + Expo (dev build) + TypeScript |
+| UI | FastAPI + React web demo | React Native + Expo (dev build) + TypeScript |
 | State | — | Zustand / React Query |
 
 ---
 
 ## 4. Prototyping Phase (Python)
 
-**Goal:** prove F1 (voice→transaction) orchestration + graph writes on the real target model.
+**Goal:** prove F1 (voice→transaction) orchestration + graph writes on the real target LLM.
 
 | Step | Task | Deliverable |
 |---|---|---|
@@ -59,7 +76,7 @@
 | P4 | Define F1 tools (create_transaction, upsert_merchant, link_edge, query) | `tools.py` w/ clear I/O |
 | P5 | Build thin orchestration loop | `agent.py` |
 | P6 | Build eval set (20–30 utterances → expected JSON) | `evals.jsonl` |
-| P7 | (Optional) FastAPI + React web demo | clickable end-to-end demo |
+| P7 | FastAPI + React web demo + voice (`/voice/transcribe`) | clickable end-to-end demo |
 
 **Guardrails**
 | Do | Don't |
@@ -67,7 +84,8 @@
 | Use SQLite | Use Postgres |
 | Keep prompt/schema/tools in plain files | Bury logic in framework internals |
 | Force structured JSON output | Rely on model "just knowing" tool calls |
-| Test on Gemma 3n E2B only | Prototype on another model |
+| Test on Gemma 3n E2B only | Prototype on another LLM |
+| Keep STT swappable behind `audio → text` | Bake Whisper into the Gemma prompt path |
 
 ---
 
@@ -81,7 +99,7 @@
 | D2 | Port SQLite schema → `op-sqlite` | copy from prototype |
 | D3 | Manual "add transaction" screen | proves DB/graph without AI |
 | D4 | On-device Gemma module (text → JSON) | **make-or-break**: test speed/RAM on real mid-range phone |
-| D5 | Voice input → Gemma module → save | port prompt/schema/loop |
+| D5 | Voice: record → **online STT** → Gemma → save | same prompt/schema; do not ship medium Whisper on device |
 | D6 | Activation (App Intent + QS tile/shortcut) | native module |
 | D7 | Transaction list / summary view | — |
 
@@ -91,10 +109,10 @@
 
 | Transfers 1:1 ✅ | Rewrite / swap 🔁 | New mobile work 🆕 |
 |---|---|---|
-| System prompts | Orchestration loop (Py → TS) | Voice input |
+| System prompts | Orchestration loop (Py → TS) | Mic capture + online STT client |
 | JSON schema / grammar | Runtime (Ollama → MediaPipe/`llama.rn`) | Activation intents |
-| Tool definitions & I/O | — | Native Gemma module wiring |
-| SQLite schema | — | — |
+| Tool definitions & I/O | Prototype STT host → cloud STT vendor | Native Gemma module wiring |
+| SQLite schema | — | Online bill vision client (F2) |
 | Eval set | — | — |
 
 > Estimated: ~70% copy/translate, ~30% new mobile work.
@@ -113,14 +131,14 @@
 | Siri / Assistant voice | ✅ | ✅ |
 | **Volume-button long-press** | ❌ not allowed (public API) | ⚠️ via accessibility only |
 
-> App exposes entry points; **user attaches the gesture** in system settings. Update README's "volume button" claim accordingly.
+> App exposes entry points; **user attaches the gesture** in system settings. README should not claim a first-party volume-button hook.
 
 ---
 
 ## 8. Data Architecture
 
 ```
-Voice/Text → LLM (structured extract) → { transactions table  ⇌  nodes/edges graph }
+Voice (online STT) / Photo (online vision) / Text → on-device LLM → { transactions  ⇌  graph }
 ```
 
 | Table | Purpose |
@@ -148,11 +166,13 @@ Voice/Text → LLM (structured extract) → { transactions table  ⇌  nodes/edg
 
 | Item | Status | Note |
 |---|---|---|
+| Cloud STT vendor (OpenAI / Deepgram / self-host) | Open | prototype uses Whisper on the API host; mobile will call a remote STT API |
+| Cloud vision vendor for F2 | Open | same hybrid pattern as voice |
+| Optional offline tiny STT fallback | Open | degraded accuracy when offline |
 | iOS runtime: MediaPipe vs `llama.rn` | Open | must run Gemma 3n E2B; Apple Foundation Models are out of scope |
 | Min device specs for Gemma 3n E2B | Validate in D4 | shapes UX (streaming vs spinner) |
 | F3 on iOS | Constrained | can't read other apps' notifications; Android-first |
-| README "volume button" | To fix | replace with Back Tap / Action Button / QS tile |
-| Prototype UI: notebook vs FastAPI+web | Open | notebook faster; web = demo |
+| README "volume button" | Fixed in README | Back Tap / Action Button / QS tile / Shortcuts |
 
 ---
 
@@ -161,7 +181,7 @@ Voice/Text → LLM (structured extract) → { transactions table  ⇌  nodes/edg
 - [ ] **M0 Prototype:** Gemma 3n E2B parses utterance → valid transaction JSON without a user-provided timestamp → SQLite graph (eval set passes)
 - [ ] **M1 Skeleton:** RN app + SQLite + manual entry
 - [ ] **M2 On-device AI:** text → JSON on a real phone (speed/RAM validated)
-- [ ] **M3 Voice E2E:** speak → transaction saved
+- [ ] **M3 Voice E2E:** speak → online STT → on-device Gemma → transaction saved
 - [ ] **M4 Activation:** user attaches a gesture/shortcut
 - [ ] **M5 Phase 1 done:** W1 + F1 shippable
-- [ ] **M6+ Next term:** F2 (photo/OCR), F3 (payment detection, Android-first)
+- [ ] **M6+ Next term:** F2 (online bill vision → on-device LLM), F3 (payment detection, Android-first)
