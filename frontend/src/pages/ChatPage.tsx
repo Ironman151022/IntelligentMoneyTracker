@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  startVoiceCaptureSession,
+  transcribeWav,
+  type VoiceSession,
+} from "../lib/voiceCapture";
 import "../styles/chat.css";
 
 type AgentContent = {
@@ -15,6 +20,8 @@ type LogResponse = {
   transaction_id: number | null;
   agent_response_content: AgentContent | string | null;
 };
+
+type VoicePhase = "idle" | "listening" | "transcribing";
 
 function contentAction(content: LogResponse["agent_response_content"]): string | null {
   if (content && typeof content === "object" && typeof content.action === "string") {
@@ -48,11 +55,41 @@ function resultTone(action: string | null): string {
   return "tone-neutral";
 }
 
+function MicIcon({ active }: { active?: boolean }) {
+  return (
+    <svg
+      className="chat-mic-icon"
+      viewBox="0 0 24 24"
+      width="20"
+      height="20"
+      aria-hidden
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {active ? (
+        <>
+          <rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none" />
+        </>
+      ) : (
+        <>
+          <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
+          <path d="M19 11a7 7 0 0 1-14 0" />
+          <path d="M12 18v3" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 export function ChatPage() {
   const inputId = useId();
   const clarifyId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const clarifyRef = useRef<HTMLInputElement>(null);
+  const voiceSessionRef = useRef<VoiceSession | null>(null);
 
   const [chatId, setChatId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -61,8 +98,11 @@ export function ChatPage() {
   const [error, setError] = useState<string | null>(null);
   const [submittedPrompt, setSubmittedPrompt] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<LogResponse | null>(null);
+  const [voicePhase, setVoicePhase] = useState<VoicePhase>("idle");
+  const [voiceTarget, setVoiceTarget] = useState<"main" | "clarify">("main");
 
   const action = contentAction(lastResult?.agent_response_content ?? null);
+  const voiceBusy = voicePhase !== "idle";
 
   const focusInput = useCallback(() => {
     if (action === "ask_clarification") {
@@ -120,21 +160,91 @@ export function ChatPage() {
 
   const submit = useCallback(async () => {
     const text = prompt.trim();
-    if (!text || loading) return;
+    if (!text || loading || voiceBusy) return;
 
     const activeChatId = chatId ?? nextChatId();
     if (!chatId) setChatId(activeChatId);
 
     await sendPrompt(text, activeChatId);
-  }, [prompt, loading, chatId, sendPrompt]);
+  }, [prompt, loading, voiceBusy, chatId, sendPrompt]);
 
   const submitClarification = useCallback(async () => {
     const text = clarifyPrompt.trim();
-    if (!text || loading || !chatId) return;
+    if (!text || loading || voiceBusy || !chatId) return;
     await sendPrompt(text, chatId);
-  }, [clarifyPrompt, loading, chatId, sendPrompt]);
+  }, [clarifyPrompt, loading, voiceBusy, chatId, sendPrompt]);
+
+  const runVoiceFlow = useCallback(
+    async (target: "main" | "clarify") => {
+      if (loading) return;
+
+      if (voiceSessionRef.current) {
+        voiceSessionRef.current.stop();
+        voiceSessionRef.current = null;
+        setVoicePhase("idle");
+        return;
+      }
+
+      setError(null);
+      setVoiceTarget(target);
+      setVoicePhase("listening");
+
+      const session = startVoiceCaptureSession({ silenceMs: 3000 });
+      voiceSessionRef.current = session;
+
+      try {
+        const blob = await session.done;
+        voiceSessionRef.current = null;
+        setVoicePhase("transcribing");
+
+        const text = await transcribeWav(blob);
+        if (!text) {
+          setError("Couldn’t hear anything — try again");
+          setVoicePhase("idle");
+          return;
+        }
+
+        if (target === "clarify") {
+          setClarifyPrompt(text);
+          setVoicePhase("idle");
+          const activeChatId = chatId;
+          if (!activeChatId) {
+            setError("No active chat for clarification");
+            return;
+          }
+          // Brief flash in the box before auto-submit
+          await new Promise((r) => setTimeout(r, 200));
+          await sendPrompt(text, activeChatId);
+          return;
+        }
+
+        setPrompt(text);
+        setVoicePhase("idle");
+        // Brief flash in the box before auto-submit
+        await new Promise((r) => setTimeout(r, 200));
+
+        const activeChatId = chatId ?? nextChatId();
+        if (!chatId) setChatId(activeChatId);
+        await sendPrompt(text, activeChatId);
+      } catch (err) {
+        voiceSessionRef.current = null;
+        setVoicePhase("idle");
+        const message =
+          err instanceof Error ? err.message : "Voice capture failed";
+        if (message !== "Recording cancelled") {
+          setError(message);
+        }
+      }
+    },
+    [loading, chatId, sendPrompt],
+  );
 
   const startNewChat = useCallback(() => {
+    if (voiceSessionRef.current) {
+      voiceSessionRef.current.stop();
+      voiceSessionRef.current = null;
+    }
+    setVoicePhase("idle");
     setSubmittedPrompt(null);
     setLastResult(null);
     setChatId(null);
@@ -147,6 +257,12 @@ export function ChatPage() {
   useEffect(() => {
     focusInput();
   }, [focusInput]);
+
+  useEffect(() => {
+    return () => {
+      voiceSessionRef.current?.stop();
+    };
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -189,6 +305,13 @@ export function ChatPage() {
 
   // Hide main input after submit; clarification uses the card input
   const showMainComposer = !submittedPrompt;
+
+  const micLabel =
+    voicePhase === "listening"
+      ? "Stop listening"
+      : voicePhase === "transcribing"
+        ? "Transcribing"
+        : "Speak to log";
 
   return (
     <section
@@ -247,15 +370,31 @@ export function ChatPage() {
                     className="chat-clarify-input"
                     type="text"
                     value={clarifyPrompt}
-                    placeholder="Your reply…"
+                    placeholder={
+                      voicePhase === "listening" && voiceTarget === "clarify"
+                        ? "Listening… pause 3s to finish"
+                        : voicePhase === "transcribing" && voiceTarget === "clarify"
+                          ? "Transcribing…"
+                          : "Your reply…"
+                    }
                     autoComplete="off"
-                    disabled={loading}
+                    disabled={loading || voiceBusy}
                     onChange={(event) => setClarifyPrompt(event.target.value)}
                   />
                   <button
+                    type="button"
+                    className={`chat-mic${voicePhase === "listening" && voiceTarget === "clarify" ? " is-listening" : ""}`}
+                    disabled={loading || voicePhase === "transcribing"}
+                    aria-label={micLabel}
+                    aria-pressed={voicePhase === "listening" && voiceTarget === "clarify"}
+                    onClick={() => void runVoiceFlow("clarify")}
+                  >
+                    <MicIcon active={voicePhase === "listening" && voiceTarget === "clarify"} />
+                  </button>
+                  <button
                     type="submit"
                     className="chat-clarify-submit"
-                    disabled={loading || !clarifyPrompt.trim()}
+                    disabled={loading || voiceBusy || !clarifyPrompt.trim()}
                   >
                     {loading ? "…" : "Reply"}
                   </button>
@@ -291,22 +430,40 @@ export function ChatPage() {
             </label>
 
             <div className="chat-row">
-              <input
-                id={inputId}
-                ref={inputRef}
-                className="chat-input"
-                type="text"
-                value={prompt}
-                placeholder="e.g. lunch on Zomato for 400 via UPI"
-                autoComplete="off"
-                disabled={loading}
-                onChange={(event) => setPrompt(event.target.value)}
-              />
+              <div className="chat-input-wrap">
+                <input
+                  id={inputId}
+                  ref={inputRef}
+                  className="chat-input"
+                  type="text"
+                  value={prompt}
+                  placeholder={
+                    voicePhase === "listening" && voiceTarget === "main"
+                      ? "Listening… pause 3s to finish"
+                      : voicePhase === "transcribing" && voiceTarget === "main"
+                        ? "Transcribing…"
+                        : "e.g. lunch on Zomato for 400 via UPI"
+                  }
+                  autoComplete="off"
+                  disabled={loading || voiceBusy}
+                  onChange={(event) => setPrompt(event.target.value)}
+                />
+                <button
+                  type="button"
+                  className={`chat-mic${voicePhase === "listening" && voiceTarget === "main" ? " is-listening" : ""}`}
+                  disabled={loading || voicePhase === "transcribing"}
+                  aria-label={micLabel}
+                  aria-pressed={voicePhase === "listening" && voiceTarget === "main"}
+                  onClick={() => void runVoiceFlow("main")}
+                >
+                  <MicIcon active={voicePhase === "listening" && voiceTarget === "main"} />
+                </button>
+              </div>
 
               <button
                 type="submit"
                 className="chat-stamp"
-                disabled={loading || !prompt.trim()}
+                disabled={loading || voiceBusy || !prompt.trim()}
                 aria-label="Log transaction"
               >
                 <span className="chat-stamp-ring" aria-hidden />
@@ -320,7 +477,7 @@ export function ChatPage() {
             </div>
 
             <p className="chat-shortcuts">
-              <kbd>/</kbd> focus · <kbd>Enter</kbd> submit
+              <kbd>/</kbd> focus · <kbd>Enter</kbd> submit · mic auto-stops after 3s silence
             </p>
           </form>
         ) : null}
