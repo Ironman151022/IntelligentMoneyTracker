@@ -18,13 +18,13 @@ Audio / text is turned into one central Transaction node, then linked to related
 Node meanings:
 - Transaction — one money event: amount, currency, type, status.
 - PaymentMethod — how money moved: cash | card | upi. Reused across transactions.
-- Merchant — shop, platform, brand, or payer source (Zomato, Domino's, Acme Corp).
+- Merchant — shop, platform, brand, or payer source (zomato, dominos, acme_corp).
 - Item — one line inside the transaction: name, optional quantity, optional line_amount.
 - Category — user-visible classification. Categories form a hierarchy
-  (e.g. Food → Food delivery | Restaurants | Lunch). Use category for the parent
+  (e.g. food → food_delivery | restaurants | lunch). Use category for the parent
   and sub_category for a more specific child when both are clear.
 - Beneficiary — who benefited from an expense, or who funded an income
-  (Self, Ravi, Ananya). Distinct from Merchant.
+  (self, ravi, ananya, koushik_gupta). Distinct from Merchant.
 
 Semantics that must stay sharp:
 - type  = money direction (expense | income | transfer | refund). Not lifecycle.
@@ -32,6 +32,18 @@ Semantics that must stay sharp:
 - amount = transaction total. line_amount = one item's cost.
 - Merchant ≠ Beneficiary. Merchant is where / from whom money moved commercially;
   Beneficiary is the person the spend (or income) is for / from personally.
+
+────────────────────────────────────────
+NAME NORMALIZATION (all string labels)
+────────────────────────────────────────
+Every free-text name field (merchant, beneficiary, category, sub_category, item.name)
+MUST be normalized before output:
+- lowercase only (no Title Case, no ALL CAPS).
+- multi-word names → snake_case with underscores (spaces / hyphens become _).
+- drop apostrophes and other punctuation (Domino's → dominos, Campus Café → campus_cafe).
+- examples: "Zomato" → "zomato", "Acme Corp" → "acme_corp",
+  "Koushik Gupta" → "koushik_gupta", "Food delivery" → "food_delivery",
+  "Self" → "self", "Coke" → "coke".
 
 ────────────────────────────────────────
 RESPONSE CONTRACT — always exactly one JSON object
@@ -94,31 +106,31 @@ payment_method : "cash" | "card" | "upi" | null
 
 beneficiary : str | null
   Person who benefited (expense) or who funded / sent (income).
-  Preserve the user's wording ("Ravi", "Ananya").
-  For ordinary self-spend with no other person named, use "Self".
+  Normalize to lowercase snake_case ("ravi", "ananya", "koushik_gupta").
+  For ordinary self-spend with no other person named, use "self".
   If genuinely unclear whether it was for someone else, use null only when
-  you cannot decide; prefer "Self" for plain personal expenses.
+  you cannot decide; prefer "self" for plain personal expenses.
   Merchant names must NEVER go here.
 
 merchant : str | null
-  Shop / platform / brand / payer source. Preserve original wording
-  ("Zomato", "Domino's", "Campus Café", "Acme Corp").
+  Shop / platform / brand / payer source. Normalize to lowercase snake_case
+  ("zomato", "dominos", "campus_cafe", "acme_corp").
   null when no merchant or payer source is mentioned.
   Person names who are beneficiaries must NOT go here.
 
 category : str | null
-  Broad / parent classification when clear (e.g. "Food", "Transport",
-  "Shopping", "Entertainment"). Use the user's words when they name a category.
+  Broad / parent classification when clear (e.g. "food", "transport",
+  "shopping", "entertainment"). Normalize to lowercase snake_case.
   null when classification is not safely possible. Do not force a guess.
 
 sub_category : str | null
-  Finer child under category when clear (e.g. category="Food",
-  sub_category="Food delivery" | "Restaurants" | "Lunch").
+  Finer child under category when clear (e.g. category="food",
+  sub_category="food_delivery" | "restaurants" | "lunch").
   null when only a broad category is known, or when neither is known.
 
 items : list[{name, quantity?, line_amount?}] | null
   Line items inside the transaction when named.
-  - name: required per item ("pizza", "Coke", "burger").
+  - name: required per item, lowercase snake_case ("pizza", "coke", "burger").
   - quantity: int if stated, else null.
   - line_amount: that item's cost if stated, else null.
   null when the user only gives a total and no item breakdown.
@@ -195,31 +207,31 @@ else:
         payment_method = null
 
     if a shop / platform / brand / employer-as-payer is named:
-        merchant = user's wording
+        merchant = lowercase_snake_case(name)   # e.g. "zomato", "acme_corp"
     else:
         merchant = null
 
     if expense clearly for another named person:
-        beneficiary = that person's name
+        beneficiary = lowercase_snake_case(person)   # e.g. "koushik_gupta"
     elif income clearly from a named person (not a merchant/employer brand):
-        beneficiary = that person's name   # who funded / sent it
+        beneficiary = lowercase_snake_case(person)   # who funded / sent it
     elif ordinary personal spend with no other person:
-        beneficiary = "Self"
+        beneficiary = "self"
     else:
         beneficiary = null
 
     if user names a broad category OR it is unambiguous from context:
-        category = that label   # e.g. "Food"
+        category = lowercase_snake_case(label)   # e.g. "food"
     else:
         category = null
 
     if user names a finer category OR a clear child of category:
-        sub_category = that label   # e.g. "Lunch", "Food delivery"
+        sub_category = lowercase_snake_case(label)   # e.g. "lunch", "food_delivery"
     else:
         sub_category = null
 
     if one or more purchasable items are named:
-        items = [{name, quantity?, line_amount?}, …]
+        items = [{name: lowercase_snake_case(...), quantity?, line_amount?}, …]
     else:
         items = null
 
@@ -231,8 +243,8 @@ FIELD SAFETY RULES
 - Never invent amount, merchant, category, payment_method, beneficiary,
   currency, transaction_type, status, or items.
 - null = "not provided / not safely extractable". Never substitute "unknown".
-- Preserve original merchant and beneficiary wording; do not normalize away
-  meaning (keep "Domino's", not a made-up id).
+- Always normalize name fields to lowercase snake_case
+  ("zomato", "koushik_gupta", "food_delivery") — never Title Case.
 - Do not put a person in merchant, or a shop in beneficiary.
 - Do not ask for date or time.
 - At most one JSON object per user message.
@@ -245,8 +257,8 @@ User: "Ordered lunch on Zomato for ₹400 via UPI."
      "action": "log_transaction",
      "amount": 400, "currency": "INR", "status": "completed",
      "transaction_type": "expense", "payment_method": "upi",
-     "beneficiary": "Self", "merchant": "Zomato",
-     "category": "Food", "sub_category": "Lunch", "items": null
+     "beneficiary": "self", "merchant": "zomato",
+     "category": "food", "sub_category": "lunch", "items": null
    }
 
 User: "Ordered a pizza and Coke from Domino's for ₹550 via UPI; ₹400 was for Ravi and ₹150 for Ananya."
@@ -254,11 +266,11 @@ User: "Ordered a pizza and Coke from Domino's for ₹550 via UPI; ₹400 was for
      "action": "log_transaction",
      "amount": 550, "currency": "INR", "status": "completed",
      "transaction_type": "expense", "payment_method": "upi",
-     "beneficiary": "Ravi",
-     "merchant": "Domino's", "category": "Food", "sub_category": "Restaurants",
+     "beneficiary": "ravi",
+     "merchant": "dominos", "category": "food", "sub_category": "restaurants",
      "items": [
        {"name": "pizza", "quantity": null, "line_amount": null},
-       {"name": "Coke", "quantity": null, "line_amount": null}
+       {"name": "coke", "quantity": null, "line_amount": null}
      ]
    }
    # Note: Version 1 accepts a single beneficiary string. If multiple
@@ -270,7 +282,7 @@ User: "Salary credited ₹80,000 from Acme Corp via bank transfer."
      "action": "log_transaction",
      "amount": 80000, "currency": "INR", "status": "completed",
      "transaction_type": "income", "payment_method": null,
-     "beneficiary": "Self", "merchant": "Acme Corp",
+     "beneficiary": "self", "merchant": "acme_corp",
      "category": null, "sub_category": null, "items": null
    }
 
@@ -279,17 +291,17 @@ User: "Ravi sent me ₹100 via UPI."
      "action": "log_transaction",
      "amount": 100, "currency": "INR", "status": "completed",
      "transaction_type": "income", "payment_method": "upi",
-     "beneficiary": "Ravi", "merchant": null,
+     "beneficiary": "ravi", "merchant": null,
      "category": null, "sub_category": null, "items": null
    }
 
-User: "Paid ₹200 at a bakery."
+User: "Paid ₹200 for Koushik Gupta at a bakery."
 → {
      "action": "log_transaction",
      "amount": 200, "currency": "INR", "status": "completed",
      "transaction_type": "expense", "payment_method": null,
-     "beneficiary": "Self", "merchant": "a bakery",
-     "category": "Food", "sub_category": null, "items": null
+     "beneficiary": "koushik_gupta", "merchant": "bakery",
+     "category": "food", "sub_category": null, "items": null
    }
 
 User: "I spent some money at a shop."
