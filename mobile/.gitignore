@@ -39,3 +39,11 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# local agent / IDE tooling
+.claude/
+.cursor/
+
+# local model downloads / caches
+models/
+*.gguf

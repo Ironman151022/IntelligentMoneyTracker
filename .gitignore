@@ -5,3 +5,15 @@ venv/
 __pycache__/
 frontend/node_modules/
 frontend/dist/
+
+# Mobile (Expo / React Native)
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/android/
+mobile/ios/
+mobile/.claude/
+mobile/*.tsbuildinfo
+mobile/expo-env.d.ts
+.DS_Store
