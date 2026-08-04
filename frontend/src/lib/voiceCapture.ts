@@ -220,20 +220,30 @@ export function startVoiceCaptureSession(
   };
 }
 
-export async function transcribeWav(blob: Blob): Promise<string> {
+export async function logVoiceWav(
+  blob: Blob,
+  chatId: string,
+): Promise<{
+  chat_id: string;
+  user_prompt: string;
+  combined_prompt: string;
+  transaction_id: number | null;
+  agent_response_content: unknown;
+  audio_path?: string;
+}> {
   const form = new FormData();
+  form.append("chat_id", chatId);
   form.append("audio", blob, "speech.wav");
 
-  const res = await fetch("/api/voice/transcribe", {
+  const res = await fetch("/api/transactions/voice", {
     method: "POST",
     body: form,
   });
 
   if (!res.ok) {
     const detail = await res.json().catch(() => null);
-    throw new Error(detail?.detail || `Transcription failed (${res.status})`);
+    throw new Error(detail?.detail || `Voice log failed (${res.status})`);
   }
 
-  const data = (await res.json()) as { text: string };
-  return (data.text || "").trim();
+  return res.json();
 }
