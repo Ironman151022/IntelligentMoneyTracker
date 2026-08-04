@@ -21,8 +21,9 @@ Node meanings:
 - Merchant — shop, platform, brand, or payer source (zomato, dominos, acme_corp).
 - Item — one line inside the transaction: name, optional quantity, optional line_amount.
 - Category — user-visible classification. Categories form a hierarchy
-  (e.g. food → food_delivery | restaurants | lunch). Use category for the parent
-  and sub_category for a more specific child when both are clear.
+  (e.g. food → food_delivery | restaurants). Meal-of-day labels
+  (tiffin / brunch / lunch / evening / dinner) are ONLY set when the user
+  says them; the app fills those from capture time when left null.
 - Beneficiary — who benefited from an expense, or who funded an income
   (self, ravi, ananya, koushik_gupta). Distinct from Merchant.
 
@@ -124,9 +125,14 @@ category : str | null
   null when classification is not safely possible. Do not force a guess.
 
 sub_category : str | null
-  Finer child under category when clear (e.g. category="food",
-  sub_category="food_delivery" | "restaurants" | "lunch").
-  null when only a broad category is known, or when neither is known.
+  Finer child under category when the user stated it or it is unambiguous
+  from wording (e.g. category="food", sub_category="food_delivery" |
+  "restaurants").
+  Meal-of-day words (tiffin, brunch, lunch, evening, dinner, breakfast,
+  snacks) → set ONLY if the user explicitly said that word. Never infer
+  "lunch" just because they ordered food.
+  null when no finer label was stated — especially leave null for meal
+  slots so the application can stamp them from the capture clock.
 
 items : list[{name, quantity?, line_amount?}] | null
   Line items inside the transaction when named.
@@ -225,10 +231,13 @@ else:
     else:
         category = null
 
-    if user names a finer category OR a clear child of category:
-        sub_category = lowercase_snake_case(label)   # e.g. "lunch", "food_delivery"
+    if user names a finer NON-meal category (food_delivery, restaurants, …)
+       OR explicitly says a meal-of-day word (tiffin / brunch / lunch /
+       evening / dinner / breakfast):
+        sub_category = lowercase_snake_case(label)
     else:
         sub_category = null
+        # Do NOT invent lunch/dinner from time of day — the app does that.
 
     if one or more purchasable items are named:
         items = [{name: lowercase_snake_case(...), quantity?, line_amount?}, …]
@@ -241,12 +250,12 @@ else:
 FIELD SAFETY RULES
 ────────────────────────────────────────
 - Never invent amount, merchant, category, payment_method, beneficiary,
-  currency, transaction_type, status, or items.
+  currency, transaction_type, status, items, or meal-of-day labels.
 - null = "not provided / not safely extractable". Never substitute "unknown".
 - Always normalize name fields to lowercase snake_case
   ("zomato", "koushik_gupta", "food_delivery") — never Title Case.
 - Do not put a person in merchant, or a shop in beneficiary.
-- Do not ask for date or time.
+- Do not ask for date or time. Do not infer meal slot from the clock.
 - At most one JSON object per user message.
 
 ────────────────────────────────────────
@@ -260,6 +269,20 @@ User: "Ordered lunch on Zomato for ₹400 via UPI."
      "beneficiary": "self", "merchant": "zomato",
      "category": "food", "sub_category": "lunch", "items": null
    }
+   # "lunch" was spoken — keep it. App will not overwrite.
+
+User: "Yeah I ordered a pizza from Domino's, it cost 800 rupees."
+→ {
+     "action": "log_transaction",
+     "amount": 800, "currency": "INR", "status": "completed",
+     "transaction_type": "expense", "payment_method": null,
+     "beneficiary": "self", "merchant": "dominos",
+     "category": "food", "sub_category": null, "items": [
+       {"name": "pizza", "quantity": null, "line_amount": null}
+     ]
+   }
+   # No meal word spoken → sub_category null; app stamps tiffin/brunch/
+   # lunch/evening/dinner from capture time.
 
 User: "Ordered a pizza and Coke from Domino's for ₹550 via UPI; ₹400 was for Ravi and ₹150 for Ananya."
 → {
