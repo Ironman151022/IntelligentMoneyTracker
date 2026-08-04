@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field, TypeAdapter, ValidationError
 
 from app.agent_tools.logger import Item, log_transaction
 from app.core.config import settings
+from app.services.meal_slot import enrich_food_meal_slot
 
 with open(settings.logger_system_prompt_path, "r") as file:
     system_prompt = file.read()
@@ -47,10 +48,19 @@ OUTPUT_SCHEMA = agent_output_adapter.json_schema()
 
 def handle_agent_output(
     output: LogTransaction | AskClarification | UnsupportedRequest,
-) -> int | None:
+) -> tuple[LogTransaction | AskClarification | UnsupportedRequest, int | None]:
+    """Persist when logging; return (possibly enriched output, transaction_id)."""
     if isinstance(output, LogTransaction):
-        return log_transaction(**output.model_dump(exclude={"action"}))
-    return None
+        enriched = output.model_copy(
+            update={
+                "sub_category": enrich_food_meal_slot(
+                    output.category,
+                    output.sub_category,
+                )
+            }
+        )
+        return enriched, log_transaction(**enriched.model_dump(exclude={"action"}))
+    return output, None
 
 
 def run_logger_agent(messages: list[dict]):
@@ -76,8 +86,13 @@ def run_logger_agent(messages: list[dict]):
             "transaction_id": None,
         }
 
+    enriched, transaction_id = handle_agent_output(parsed)
     return {
         "agent_response_raw": agent_response_raw,
-        "agent_response_content": parsed.model_dump_json(),
-        "transaction_id": handle_agent_output(parsed),
+        "agent_response_content": (
+            enriched.model_dump_json()
+            if isinstance(enriched, LogTransaction)
+            else parsed.model_dump_json()
+        ),
+        "transaction_id": transaction_id,
     }

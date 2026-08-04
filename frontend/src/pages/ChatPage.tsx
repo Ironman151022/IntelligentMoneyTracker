@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
+  logVoiceWav,
   startVoiceCaptureSession,
-  transcribeWav,
   type VoiceSession,
 } from "../lib/voiceCapture";
 import "../styles/chat.css";
@@ -19,9 +19,10 @@ type LogResponse = {
   combined_prompt: string;
   transaction_id: number | null;
   agent_response_content: AgentContent | string | null;
+  audio_path?: string;
 };
 
-type VoicePhase = "idle" | "listening" | "transcribing";
+type VoicePhase = "idle" | "listening" | "processing";
 
 function contentAction(content: LogResponse["agent_response_content"]): string | null {
   if (content && typeof content === "object" && typeof content.action === "string") {
@@ -40,6 +41,11 @@ function prettyAgentResponse(content: LogResponse["agent_response_content"]): st
     }
   }
   return JSON.stringify(content, null, 2);
+}
+
+function displayUserPrompt(prompt: string): string {
+  if (prompt.startsWith("[audio:")) return "🎤 voice recording";
+  return prompt;
 }
 
 function nextChatId() {
@@ -112,51 +118,79 @@ export function ChatPage() {
     inputRef.current?.focus();
   }, [action]);
 
-  const sendPrompt = useCallback(async (text: string, activeChatId: string) => {
-    setLoading(true);
-    setError(null);
-    setSubmittedPrompt(text);
-    setPrompt("");
+  const applyLogResult = useCallback((data: LogResponse, displayPrompt: string) => {
+    setLastResult(data);
+    setSubmittedPrompt(displayPrompt);
+    setClarifyPrompt("");
 
-    try {
-      const res = await fetch("/api/transactions/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_prompt: text, chat_id: activeChatId }),
-      });
-
-      if (!res.ok) {
-        const detail = await res.json().catch(() => null);
-        throw new Error(detail?.detail || `Request failed (${res.status})`);
-      }
-
-      const data = (await res.json()) as LogResponse;
-      setLastResult(data);
-      setClarifyPrompt("");
-
-      const nextAction = contentAction(data.agent_response_content);
-      if (nextAction === "log_transaction" && data.transaction_id != null) {
-        setChatId(null);
-      }
-      if (nextAction === "unsupported_request") {
-        setChatId(null);
-      }
-
-      requestAnimationFrame(() => {
-        if (nextAction === "ask_clarification") {
-          clarifyRef.current?.focus();
-        } else {
-          inputRef.current?.focus();
-        }
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-      setPrompt(text);
-      setSubmittedPrompt(null);
-    } finally {
-      setLoading(false);
+    const nextAction = contentAction(data.agent_response_content);
+    if (nextAction === "log_transaction" && data.transaction_id != null) {
+      setChatId(null);
     }
+    if (nextAction === "unsupported_request") {
+      setChatId(null);
+    }
+
+    requestAnimationFrame(() => {
+      if (nextAction === "ask_clarification") {
+        clarifyRef.current?.focus();
+      } else {
+        inputRef.current?.focus();
+      }
+    });
   }, []);
+
+  const sendPrompt = useCallback(
+    async (text: string, activeChatId: string) => {
+      setLoading(true);
+      setError(null);
+      setSubmittedPrompt(text);
+      setPrompt("");
+
+      try {
+        const res = await fetch("/api/transactions/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_prompt: text, chat_id: activeChatId }),
+        });
+
+        if (!res.ok) {
+          const detail = await res.json().catch(() => null);
+          throw new Error(detail?.detail || `Request failed (${res.status})`);
+        }
+
+        const data = (await res.json()) as LogResponse;
+        applyLogResult(data, text);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Something went wrong");
+        setPrompt(text);
+        setSubmittedPrompt(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [applyLogResult],
+  );
+
+  const sendVoice = useCallback(
+    async (blob: Blob, activeChatId: string) => {
+      setLoading(true);
+      setError(null);
+      setSubmittedPrompt("🎤 voice recording");
+      setPrompt("");
+
+      try {
+        const data = (await logVoiceWav(blob, activeChatId)) as LogResponse;
+        applyLogResult(data, displayUserPrompt(data.user_prompt));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Voice log failed");
+        setSubmittedPrompt(null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [applyLogResult],
+  );
 
   const submit = useCallback(async () => {
     const text = prompt.trim();
@@ -195,37 +229,24 @@ export function ChatPage() {
       try {
         const blob = await session.done;
         voiceSessionRef.current = null;
-        setVoicePhase("transcribing");
-
-        const text = await transcribeWav(blob);
-        if (!text) {
-          setError("Couldn’t hear anything — try again");
-          setVoicePhase("idle");
-          return;
-        }
+        setVoicePhase("processing");
 
         if (target === "clarify") {
-          setClarifyPrompt(text);
-          setVoicePhase("idle");
           const activeChatId = chatId;
           if (!activeChatId) {
             setError("No active chat for clarification");
+            setVoicePhase("idle");
             return;
           }
-          // Brief flash in the box before auto-submit
-          await new Promise((r) => setTimeout(r, 200));
-          await sendPrompt(text, activeChatId);
+          await sendVoice(blob, activeChatId);
+          setVoicePhase("idle");
           return;
         }
 
-        setPrompt(text);
-        setVoicePhase("idle");
-        // Brief flash in the box before auto-submit
-        await new Promise((r) => setTimeout(r, 200));
-
         const activeChatId = chatId ?? nextChatId();
         if (!chatId) setChatId(activeChatId);
-        await sendPrompt(text, activeChatId);
+        await sendVoice(blob, activeChatId);
+        setVoicePhase("idle");
       } catch (err) {
         voiceSessionRef.current = null;
         setVoicePhase("idle");
@@ -236,7 +257,7 @@ export function ChatPage() {
         }
       }
     },
-    [loading, chatId, sendPrompt],
+    [loading, chatId, sendVoice],
   );
 
   const startNewChat = useCallback(() => {
@@ -266,12 +287,12 @@ export function ChatPage() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const tag = target?.tagName?.toLowerCase();
+      const targetEl = event.target as HTMLElement | null;
+      const tag = targetEl?.tagName?.toLowerCase();
       const typing =
         tag === "input" ||
         tag === "textarea" ||
-        target?.isContentEditable === true;
+        targetEl?.isContentEditable === true;
 
       if (event.key === "/" && !typing && !event.metaKey && !event.ctrlKey) {
         event.preventDefault();
@@ -281,7 +302,7 @@ export function ChatPage() {
 
       if (
         event.key === "Enter" &&
-        target === inputRef.current &&
+        targetEl === inputRef.current &&
         !event.shiftKey
       ) {
         event.preventDefault();
@@ -291,7 +312,7 @@ export function ChatPage() {
 
       if (
         event.key === "Enter" &&
-        target === clarifyRef.current &&
+        targetEl === clarifyRef.current &&
         !event.shiftKey
       ) {
         event.preventDefault();
@@ -303,15 +324,22 @@ export function ChatPage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [focusInput, submit, submitClarification]);
 
-  // Hide main input after submit; clarification uses the card input
   const showMainComposer = !submittedPrompt;
 
   const micLabel =
     voicePhase === "listening"
       ? "Stop listening"
-      : voicePhase === "transcribing"
-        ? "Transcribing"
+      : voicePhase === "processing"
+        ? "Processing voice"
         : "Speak to log";
+
+  const bubbleText =
+    action === "ask_clarification" && lastResult?.combined_prompt
+      ? lastResult.combined_prompt
+          .split(", ")
+          .map(displayUserPrompt)
+          .join(", ")
+      : submittedPrompt;
 
   return (
     <section
@@ -322,11 +350,7 @@ export function ChatPage() {
         <p className="chat-kicker">{chatId ?? "new chat"}</p>
 
         {submittedPrompt ? (
-          <div className="chat-user-bubble">
-            {action === "ask_clarification" && lastResult?.combined_prompt
-              ? lastResult.combined_prompt
-              : submittedPrompt}
-          </div>
+          <div className="chat-user-bubble">{bubbleText}</div>
         ) : null}
 
         {submittedPrompt && error ? (
@@ -373,8 +397,8 @@ export function ChatPage() {
                     placeholder={
                       voicePhase === "listening" && voiceTarget === "clarify"
                         ? "Listening… pause 3s to finish"
-                        : voicePhase === "transcribing" && voiceTarget === "clarify"
-                          ? "Transcribing…"
+                        : voicePhase === "processing" && voiceTarget === "clarify"
+                          ? "Logging from voice…"
                           : "Your reply…"
                     }
                     autoComplete="off"
@@ -384,7 +408,7 @@ export function ChatPage() {
                   <button
                     type="button"
                     className={`chat-mic${voicePhase === "listening" && voiceTarget === "clarify" ? " is-listening" : ""}`}
-                    disabled={loading || voicePhase === "transcribing"}
+                    disabled={loading || voicePhase === "processing"}
                     aria-label={micLabel}
                     aria-pressed={voicePhase === "listening" && voiceTarget === "clarify"}
                     onClick={() => void runVoiceFlow("clarify")}
@@ -440,8 +464,8 @@ export function ChatPage() {
                   placeholder={
                     voicePhase === "listening" && voiceTarget === "main"
                       ? "Listening… pause 3s to finish"
-                      : voicePhase === "transcribing" && voiceTarget === "main"
-                        ? "Transcribing…"
+                      : voicePhase === "processing" && voiceTarget === "main"
+                        ? "Logging from voice…"
                         : "e.g. lunch on Zomato for 400 via UPI"
                   }
                   autoComplete="off"
@@ -451,7 +475,7 @@ export function ChatPage() {
                 <button
                   type="button"
                   className={`chat-mic${voicePhase === "listening" && voiceTarget === "main" ? " is-listening" : ""}`}
-                  disabled={loading || voicePhase === "transcribing"}
+                  disabled={loading || voicePhase === "processing"}
                   aria-label={micLabel}
                   aria-pressed={voicePhase === "listening" && voiceTarget === "main"}
                   onClick={() => void runVoiceFlow("main")}
