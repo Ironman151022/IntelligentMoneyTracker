@@ -1,0 +1,12 @@
+<resources>
+    <string name="app_name">Intelligent Money Tracker</string>
+    <string name="model_card_badge">Best overall</string>
+    <string name="model_display_name">gemma4-E2B</string>
+    <string name="model_learn_more">Learn more</string>
+    <string name="model_download_action">Download Model</string>
+    <string name="model_redownload_action">Re-download Model</string>
+    <string name="model_resume_action">Resume Download</string>
+    <string name="model_downloading_action">Downloading…</string>
+    <string name="model_ready_title">Model ready</string>
+    <string name="home_subtitle">On-device transaction logging with Gemma.</string>
+</resources>
