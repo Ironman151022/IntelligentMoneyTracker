@@ -1,6 +1,6 @@
 # Android plan — Intelligent Money Tracker
 
-**Scope:** Android first. On-device only. Local Mac backend is done.
+**Scope:** Android first. On-device only.
 
 ## Goal
 
@@ -33,21 +33,21 @@ text / mic → logger prompt → JSON → SQLite
 | Option | Use it? | Why |
 |---|---|---|
 | **LiteRT-LM + litert-community `.litertlm`** | **Yes — primary** | Official edge packaging. Native audio + text. Gallery path. |
-| bartowski GGUF + llama.rn (text-only file) | **No for audio** | That GGUF alone has no audio encoder. |
-| GGUF + mmproj | Fallback only | Possible, more fragile than LiteRT for Gemma audio. |
-| HuggingFace token in the app | **No** | Bad UX. Mirror the `.litertlm` on your CDN. |
-| Online Whisper STT | **No** | Replaced by Gemma native audio. |
 
 **Decision:** Android on **LiteRT-LM** + **`litert-community/gemma-4-E2B-it-litert-lm`**.
 
 ## Model delivery
 
 - Do **not** put the ~2.58 GB `.litertlm` inside the APK.
-- You may accept Gemma license once on HF to download; **users never see HF**.
-- Re-host `gemma-4-E2B-it.litertlm` on **CDN (e.g. Cloudflare R2)**.
-- App: download once on first launch → app private storage.
+- **Testing (current):** download `gemma-4-E2B-it.litertlm` **directly from Hugging Face**
+  ([`litert-community/gemma-4-E2B-it-litert-lm`](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm)).
+  Public Apache-2.0 packaging — **no HF token in the app**.
+- Resolve URL used by the app:
+  `https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm`
+- App: user taps **Download model** → store once in **app-private storage** → SHA-256 verify → LiteRT-LM load.
 - Show Gemma license / prohibited-use link before or during first download.
 - Vision/audio encoders load on demand inside LiteRT-LM (lower idle memory).
+- **Later / production:** optionally re-host on your own CDN for rate-limit control; keep the same local-store + checksum flow.
 
 ## App shape
 
