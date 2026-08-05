@@ -7,3 +7,12 @@ frontend/node_modules/
 frontend/dist/
 backend/storage/audio/
 .DS_Store
+/gallery
+.idea/
+*.iml
+mobile/local.properties
+mobile/.gradle/
+mobile/.kotlin/
+mobile/**/build/
+mobile/*.apk
+mobile/*.aab
